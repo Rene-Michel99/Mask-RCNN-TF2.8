@@ -1,3 +1,5 @@
 tensorflow==2.9
 scikit-image
 numpy
+imgaug
+pycocotools

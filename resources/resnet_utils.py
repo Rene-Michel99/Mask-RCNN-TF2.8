@@ -1,6 +1,10 @@
 import tensorflow as tf
-import keras.layers as KL
-import keras.models as KM
+import tensorflow.keras.layers as KL
+import tensorflow.keras.models as KM
+
+
+# Code adopted from:
+# https://github.com/fchollet/deep-learning-models/blob/master/resnet50.py
 
 
 def rpn_graph(feature_map, anchors_per_location, anchor_stride):
@@ -103,7 +107,7 @@ def conv_block(input_tensor, kernel_size, filters, stage, block,
 
     shortcut = KL.Conv2D(nb_filter3, (1, 1), strides=strides,
                          name=conv_name_base + '1', use_bias=use_bias)(input_tensor)
-    shortcut = KL.BatchNormalization(name=bn_name_base + '1',  trainable=train_bn)(shortcut)
+    shortcut = KL.BatchNormalization(name=bn_name_base + '1', trainable=train_bn)(shortcut)
 
     x = KL.Add()([x, shortcut])
     x = KL.Activation('relu', name='res' + str(stage) + block + '_out')(x)
@@ -145,6 +149,10 @@ def identity_block(input_tensor, kernel_size, filters, stage, block,
     return x
 
 
+############################################################
+#  Resnet Graph
+############################################################
+
 def resnet_graph(input_image, architecture, stage5=False, train_bn=True):
     """Build a ResNet graph.
         architecture: Can be resnet50 or resnet101
@@ -181,3 +189,4 @@ def resnet_graph(input_image, architecture, stage5=False, train_bn=True):
     else:
         C5 = None
     return [C1, C2, C3, C4, C5]
+
