@@ -45,7 +45,7 @@ from model import MaskRCNN as MRCNN
 #tf.config.set_soft_device_placement(True)
 #tf.debugging.enable_check_numerics()  # modo code reviewer
 tf.debugging.experimental.enable_dump_debug_info(
-    "/tmp/tfdbg2_logdir",
+    "./logs/tfdbg2_logdir",
     tensor_debug_mode="FULL_HEALTH",
     circular_buffer_size=-1)
 

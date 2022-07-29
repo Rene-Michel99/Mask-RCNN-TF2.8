@@ -22,6 +22,8 @@ import urllib.request
 import shutil
 import warnings
 from distutils.version import LooseVersion
+import tensorflow.keras.backend as K
+
 
 # URL from which to download the latest COCO trained weights
 COCO_MODEL_URL = "https://github.com/matterport/Mask_RCNN/releases/download/v2.0/mask_rcnn_coco.h5"
@@ -120,6 +122,15 @@ def parse_image_meta_graph(meta):
         "active_class_ids": active_class_ids,
     }
 
+
+def smooth_l1_loss(y_true, y_pred):
+    """Implements Smooth-L1 loss.
+    y_true and y_pred are typically: [N, 4], but could be any shape.
+    """
+    diff = K.abs(y_true - y_pred)
+    less_than_one = K.cast(K.less(diff, 1.0), "float32")
+    loss = (less_than_one * 0.5 * diff**2) + (1 - less_than_one) * (diff - 0.5)
+    return loss
 
 
 ############################################################

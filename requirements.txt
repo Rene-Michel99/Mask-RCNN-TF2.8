@@ -1,4 +1,4 @@
-tensorflow==2.9
+tensorflow==2.8
 scikit-image
 numpy
 imgaug
