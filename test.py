@@ -5,7 +5,7 @@ import random
 from Custom_layers import *
 from resources import utils
 from coco import CocoConfig
-from model import MaskRCNN as MRCNN
+from model import MaskRCNN
 from resources import visualize
 os.environ['CUDA_VISIBLE_DEVICES'] = '-1'
 
@@ -37,7 +37,7 @@ tf.debugging.experimental.enable_dump_debug_info(
     circular_buffer_size=-1)
 
 
-mrcnn = MRCNN('inference', config, './models')
+mrcnn = MaskRCNN('inference', config, './models')
 #mrcnn.keras_model.save('models/mrcnn_model.h5')
 #print(mrcnn.keras_model.summary())
 mrcnn.load_weights(os.path.join(LOG_PATH, 'mask_rcnn_coco.5'), by_name=True)
