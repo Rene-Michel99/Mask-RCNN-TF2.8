@@ -18,7 +18,7 @@ def mrcnn_class_loss_graph(target_class_ids, pred_class_logits,
     # During model building, Keras calls this function with
     # target_class_ids of type float32. Unclear why. Cast it
     # to int to get around it.
-    target_class_ids = tf.cast(target_class_ids, 'int64')
+    target_class_ids = tf.cast(target_class_ids, tf.int64)
 
     # Find predictions of classes that are not in the dataset.
     pred_class_ids = tf.argmax(pred_class_logits, axis=2)
@@ -82,11 +82,11 @@ def mrcnn_mask_loss_graph(target_masks, target_class_ids, pred_masks):
                 with values from 0 to 1.
     """
     # Reshape for simplicity. Merge first two dimensions into one.
-    target_class_ids = K.reshape(target_class_ids, (-1,))
+    target_class_ids = tf.reshape(target_class_ids, (-1,))
     mask_shape = tf.shape(target_masks)
-    target_masks = K.reshape(target_masks, (-1, mask_shape[2], mask_shape[3]))
+    target_masks = tf.reshape(target_masks, (-1, mask_shape[2], mask_shape[3]))
     pred_shape = tf.shape(pred_masks)
-    pred_masks = K.reshape(pred_masks,
+    pred_masks = tf.reshape(pred_masks,
                            (-1, pred_shape[2], pred_shape[3], pred_shape[4]))
     # Permute predicted masks to [N, num_classes, height, width]
     pred_masks = tf.transpose(pred_masks, [0, 3, 1, 2])

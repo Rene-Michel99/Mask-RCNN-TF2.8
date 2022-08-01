@@ -40,13 +40,12 @@ class DetectionTargetLayer(tf.keras.layers.Layer):
         gt_masks = inputs[3]
 
         # Slice the batch and run a graph for each slice
-        names = ["rois", "target_class_ids", "target_deltas", "target_mask"]
+        names = ["rois", "target_class_ids", "target_bbox", "target_mask"]
         outputs = batch_slice(
             [proposals, gt_class_ids, gt_boxes, gt_masks],
             lambda w, x, y, z: detection_targets_graph(
                 w, x, y, z, self.config),
             self.config.IMAGES_PER_GPU, names=names)
-        print("output of DetectionTargetLayer (rois): {}".format(outputs))
         return outputs
 
     def compute_output_shape(self, input_shape):

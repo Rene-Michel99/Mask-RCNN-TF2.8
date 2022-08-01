@@ -129,14 +129,10 @@ def fpn_classifier_graph(rois, feature_maps, image_meta,
 
     # BBox head
     # [batch, num_rois, NUM_CLASSES * (dy, dx, log(dh), log(dw))]
-    print(rois)
     x = KL.TimeDistributed(KL.Dense(num_classes * 4, activation='linear'),
                            name='mrcnn_bbox_fc')(shared)
     # Reshape to [batch, num_rois, NUM_CLASSES, (dy, dx, log(dh), log(dw))]
-    s = K.int_shape(x)
-    print("reshape batch: {} /\nshape: {} /\nnum_classes: {}".format(x, s, num_classes))
-    mrcnn_bbox = KL.Reshape((s[2], num_classes, 4), name="mrcnn_bbox")(x) #None, 81, 4
-    print("mrcnn_bbox: {}".format(mrcnn_bbox))
+    mrcnn_bbox = KL.Reshape((-1, num_classes, 4), name="mrcnn_bbox")(x)
 
     return mrcnn_class_logits, mrcnn_probs, mrcnn_bbox
 
@@ -206,14 +202,12 @@ def rpn_class_loss_graph(rpn_match, rpn_class_logits):
     rpn_class_logits: [batch, anchors, 2]. RPN classifier logits for BG/FG.
     """
     # Squeeze last dim to simplify
-    print("---- rpn_class_loss_graph ----")
     rpn_match = tf.squeeze(rpn_match, -1)
-    print("rpn_match: {}".format(rpn_match))
     # Get anchor classes. Convert the -1/+1 match to 0/1 values.
-    anchor_class = K.cast(K.equal(rpn_match, 1), tf.int32)
+    anchor_class = tf.cast(tf.equal(rpn_match, 1), tf.int32)
     # Positive and Negative anchors contribute to the loss,
     # but neutral anchors (match value = 0) don't.
-    indices = tf.where(K.not_equal(rpn_match, 0))
+    indices = tf.where(tf.not_equal(rpn_match, 0))
     # Pick rows that contribute to the loss and filter out the rest.
     rpn_class_logits = tf.gather_nd(rpn_class_logits, indices)
     anchor_class = tf.gather_nd(anchor_class, indices)
@@ -239,13 +233,13 @@ def rpn_bbox_loss_graph(config, target_bbox, rpn_match, rpn_bbox):
     # Positive anchors contribute to the loss, but negative and
     # neutral anchors (match value of 0 or -1) don't.
     rpn_match = K.squeeze(rpn_match, -1)
-    indices = tf.where(K.equal(rpn_match, 1))
+    indices = tf.where(tf.equal(rpn_match, 1))
 
     # Pick bbox deltas that contribute to the loss
     rpn_bbox = tf.gather_nd(rpn_bbox, indices)
 
     # Trim target bounding box deltas to the same length as rpn_bbox.
-    batch_counts = K.sum(K.cast(K.equal(rpn_match, 1), tf.int32), axis=1)
+    batch_counts = K.sum(tf.cast(tf.equal(rpn_match, 1), tf.int32), axis=1)
     target_bbox = batch_pack_graph(target_bbox, batch_counts,
                                    config.IMAGES_PER_GPU)
 

@@ -1,7 +1,6 @@
 import tensorflow as tf
 import numpy as np
 
-
 def trim_zeros_graph(boxes, name='trim_zeros'):
     """Often boxes are represented with matrices of shape [N, 4] and
     are padded with zeros. This removes zero boxes.
@@ -32,29 +31,18 @@ def refine_detections_graph(rois, probs, deltas, window, config):
         coordinates are normalized.
     """
     # Class IDs per ROI
-    print("--------- refine_detections_graph ----------")
     class_ids = tf.argmax(probs, axis=1, output_type=tf.int32)
     # Class probability of the top class of each ROI
-    print("probs: {} / rois: {}".format(probs, rois))
-    print("deltas: {}".format(deltas))
-    print("class_ids: {}".format(class_ids))
-    indices = tf.stack([tf.range(probs.shape[1]), class_ids], axis=1)
-    print("indices tf.stack: {}".format(indices))
+    indices = tf.stack([tf.range(tf.shape(probs)[0]), class_ids], axis=1)
     class_scores = tf.gather_nd(probs, indices)
-    print("class_scores: {}".format(class_scores))
     # Class-specific bounding box deltas
     deltas_specific = tf.gather_nd(deltas, indices)
-    print("deltas_specific: {}".format(deltas_specific))
     # Apply bounding box deltas
     # Shape: [boxes, (y1, x1, y2, x2)] in normalized coordinates
-    print(deltas_specific, config.BBOX_STD_DEV) # Dimensions must be equal, but are 81 and 4 for
     refined_rois = apply_box_deltas_graph(
         rois, deltas_specific * config.BBOX_STD_DEV)
     # Clip boxes to image window
-    print("refined_rois: {}".format(refined_rois))
     refined_rois = clip_boxes_graph(refined_rois, window)
-    refined_rois = tf.pad(refined_rois, [(0, 0), (0, 0)], "CONSTANT")
-    print("refined_rois padded: {}".format(refined_rois))
 
     # Filter out background boxes
     keep = tf.where(class_ids > 0)[:, 0]
@@ -119,7 +107,7 @@ def refine_detections_graph(rois, probs, deltas, window, config):
 
     # Pad with zeros if detections < DETECTION_MAX_INSTANCES
     gap = config.DETECTION_MAX_INSTANCES - tf.shape(detections)[0]
-    print("-------------------------")
+    detections = tf.pad(detections, [(0, gap), (0, 0)], "CONSTANT")
     return detections
 
 
@@ -146,13 +134,11 @@ def apply_box_deltas_graph(boxes, deltas):
     deltas: [N, (dy, dx, log(dh), log(dw))] refinements to apply
     """
     # Convert to y, x, h, w
-    print("apply_box_deltas_graph: {} / {}".format(boxes, deltas))
     height = boxes[:, 2] - boxes[:, 0]
     width = boxes[:, 3] - boxes[:, 1]
     center_y = boxes[:, 0] + 0.5 * height
     center_x = boxes[:, 1] + 0.5 * width
     # Apply deltas
-    print("boxes: {} / deltas: {}".format(boxes, deltas))
     center_y += deltas[:, 0] * height
     center_x += deltas[:, 1] * width
     height *= tf.exp(deltas[:, 2])

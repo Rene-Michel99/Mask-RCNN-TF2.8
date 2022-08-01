@@ -1,36 +1,25 @@
 import os
-import skimage
+import cv2 as cv
 import random
 
-
-from config import Config
 from Custom_layers import *
 from resources import utils
-
+from coco import CocoConfig
+from model import MaskRCNN as MRCNN
+from resources import visualize
 os.environ['CUDA_VISIBLE_DEVICES'] = '-1'
 
 
-class CocoConfig(Config):
-    """Configuration for training on MS COCO.
-    Derives from the base Config class and overrides values specific
-    to the COCO dataset.
-    """
-    # Give the configuration a recognizable name
-    NAME = "coco"
-
-    # We use a GPU with 12GB memory, which can fit two images.
-    # Adjust down if you use a smaller GPU.
+class InferenceConfig(CocoConfig):
+    # Set batch size to 1 since we'll be running inference on
+    # one image at a time. Batch size = GPU_COUNT * IMAGES_PER_GPU
+    GPU_COUNT = 1
     IMAGES_PER_GPU = 1
-
-    # Uncomment to train on 8 GPUs (default is 1)
-    # GPU_COUNT = 8
-
-    # Number of classes (including background)
-    NUM_CLASSES = 1 + 80  # COCO has 80 classes
     BATCH_SIZE = 1
+    DETECTION_MIN_CONFIDENCE = 0.75
 
 
-config = CocoConfig()
+config = InferenceConfig()
 
 LOG_PATH = "./logs"
 IMAGE_DIR = "../images"
@@ -39,8 +28,6 @@ if not os.path.exists(LOG_PATH):
 
 if not os.path.exists(os.path.join(LOG_PATH, 'mask_rcnn_coco.5')):
     utils.download_trained_weights(os.path.join(LOG_PATH, 'mask_rcnn_coco.5'))
-
-from model import MaskRCNN as MRCNN
 
 #tf.config.set_soft_device_placement(True)
 #tf.debugging.enable_check_numerics()  # modo code reviewer
@@ -52,10 +39,10 @@ tf.debugging.experimental.enable_dump_debug_info(
 
 mrcnn = MRCNN('inference', config, './models')
 #mrcnn.keras_model.save('models/mrcnn_model.h5')
-print(mrcnn.keras_model.summary())
+#print(mrcnn.keras_model.summary())
 mrcnn.load_weights(os.path.join(LOG_PATH, 'mask_rcnn_coco.5'), by_name=True)
 
-class_names = ['BG', 'person', 'bicycle', 'car', 'motorcycle', 'airplane',
+class_names = ['person', 'bicycle', 'car', 'motorcycle', 'airplane',
                'bus', 'train', 'truck', 'boat', 'traffic light',
                'fire hydrant', 'stop sign', 'parking meter', 'bench', 'bird',
                'cat', 'dog', 'horse', 'sheep', 'cow', 'elephant', 'bear',
@@ -72,10 +59,15 @@ class_names = ['BG', 'person', 'bicycle', 'car', 'motorcycle', 'airplane',
                'teddy bear', 'hair drier', 'toothbrush']
 
 
-file_names = next(os.walk(IMAGE_DIR))[2]
-images = [
-    skimage.io.imread(os.path.join(IMAGE_DIR, random.choice(file_names)))
-]
+images = []
+for filename in os.listdir(IMAGE_DIR):
+    image = cv.imread(os.path.join(IMAGE_DIR, filename))
+    image = cv.cvtColor(image, cv.COLOR_BGR2RGB)
+    images.append(image)
 
-results = mrcnn.detect(images, verbose=0)
-print(results)
+chosen = random.choice(images)
+results = mrcnn.detect([chosen], verbose=0)
+r = results[0]
+
+visualize.display_instances(chosen, r['rois'], r['masks'], r['class_ids'],
+                            class_names, r['scores'])

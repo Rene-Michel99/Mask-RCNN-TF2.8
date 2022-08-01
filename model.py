@@ -24,17 +24,18 @@ from resources.Data_utils import *
 from resources.MRCNN_utils import *
 from resources.RPN_utils import *
 from Custom_layers import (
-    PyramidROIAlign,
-    BatchNorm,
     ProposalLayer,
     DetectionLayer,
-    DetectionTargetLayer
+    DetectionTargetLayer,
+    GetAnchors
 )
 
-# Requires TensorFlow 1.3+ and Keras 2.0.8+.
+# Requires TensorFlow 2.8+
 from distutils.version import LooseVersion
-assert LooseVersion(tf.__version__) >= LooseVersion("1.3")
-assert LooseVersion(keras.__version__) >= LooseVersion('2.0.8')
+assert LooseVersion(tf.__version__) >= LooseVersion("2.4")
+tf.compat.v1.disable_eager_execution()
+#import tensorflow.compat.v1 as tf
+#tf.disable_v2_behavior()
 
 
 class MaskRCNN:
@@ -148,10 +149,10 @@ class MaskRCNN:
         if mode == "training":
             anchors = self.get_anchors(config.IMAGE_SHAPE)
             # Duplicate across the batch dimension because Keras requires it
-            # TODO: can this be optimized to avoid duplicating the anchors?
-            anchors = np.broadcast_to(anchors, (config.BATCH_SIZE,) + anchors.shape)
             # A hack to get around Keras's bad support for constants
-            anchors = KL.Lambda(lambda x: tf.Variable(anchors), name="anchors")(input_image)
+            anchors = GetAnchors(
+                np.broadcast_to(anchors, (config.BATCH_SIZE,) + anchors.shape),
+                name="anchors")(input_image)
         else:
             anchors = input_anchors
 
@@ -178,13 +179,11 @@ class MaskRCNN:
         # and zero padded.
         proposal_count = config.POST_NMS_ROIS_TRAINING if mode == "training"\
             else config.POST_NMS_ROIS_INFERENCE
-        print("proposal_count: {}".format(proposal_count))
         rpn_rois = ProposalLayer(
             proposal_count=proposal_count,
             nms_threshold=config.RPN_NMS_THRESHOLD,
             name="ROI",
             config=config)([rpn_class, rpn_bbox, anchors])
-        print("rpn_rois proposalLayer: {}".format(rpn_rois))
 
         if mode == "training":
             # Class ID mask to mark class IDs supported by the dataset the image
@@ -320,40 +319,10 @@ class MaskRCNN:
         some layers from loading.
         exclude: list of layer names to exclude
         """
-        import h5py
-        # Conditional import to support versions of Keras before 2.2
-        # TODO: remove in about 6 months (end of 2018)
-        try:
-            from tensorflow.python.keras.saving import hdf5_format as saving
-        except ImportError:
-            # Keras before 2.2 used the 'topology' namespace.
-            from keras.engine import topology as saving
-
-        if exclude:
-            by_name = True
-
-        if h5py is None:
-            raise ImportError('`load_weights` requires h5py.')
-        f = h5py.File(filepath, mode='r')
-        if 'layer_names' not in f.attrs and 'model_weights' in f:
-            f = f['model_weights']
-
         # In multi-GPU training, we wrap the model. Get layers
         # of the inner model because they have the weights.
         keras_model = self.keras_model
-        layers = keras_model.inner_model.layers if hasattr(keras_model, "inner_model")\
-            else keras_model.layers
-
-        # Exclude some layers
-        if exclude:
-            layers = filter(lambda l: l.name not in exclude, layers)
-
-        if by_name:
-            saving.load_weights_from_hdf5_group_by_name(f, layers)
-        else:
-            saving.load_weights_from_hdf5_group(f, layers)
-        if hasattr(f, 'close'):
-            f.close()
+        keras_model.load_weights(filepath, by_name=by_name)
 
         # Update the log directory
         self.set_log_dir(filepath)
@@ -401,10 +370,10 @@ class MaskRCNN:
             # tf.cond(tf.constant(layer.output in self.keras_model.losses), lambda: 1, lambda: self.keras_model.add_loss(tf.reduce_mean(layer.output, keepdims=True) * self.config.LOSS_WEIGHTS.get(name, 1.)))
             #if layer.output in self.keras_model.losses:
             #    continue
-            #loss = (
-            #    tf.reduce_mean(layer.output, keepdims=True)
-            #    * self.config.LOSS_WEIGHTS.get(name, 1.))
-            # self.keras_model.add_loss(loss)
+            for name in loss_names:
+                layer = self.keras_model.get_layer(name)
+                loss = (tf.reduce_mean(layer.output, keepdims=True) * self.config.LOSS_WEIGHTS.get(name, 1.))
+                self.keras_model.add_loss(loss)
 
         # Add L2 Regularization
         # Skip gamma and beta weights of batch normalization layers.
@@ -417,10 +386,8 @@ class MaskRCNN:
         # Compile
         self.keras_model.compile(
             optimizer=optimizer,
-            loss=[None] * len(self.keras_model.outputs),
-            run_eagerly=True
+            loss=[None] * len(self.keras_model.outputs)
         )
-        self.keras_model.run_eagerly = True
         # Add metrics for losses
         for name in loss_names:
             if name in self.keras_model.metrics_names:
@@ -749,8 +716,6 @@ class MaskRCNN:
         # Duplicate across the batch dimension because Keras requires it
         # TODO: can this be optimized to avoid duplicating the anchors?
         anchors = np.broadcast_to(anchors, (self.config.BATCH_SIZE,) + anchors.shape)
-        # print("PPPPPPPPPPPP ", image_metas)
-        # print("QQQQQQQQQ ", anchors)
         # np.save("image_metas.npy", image_metas)
         # np.save("anchors.npy", anchors)
         # np.save("molded_images.npy", molded_images)
@@ -929,7 +894,7 @@ class MaskRCNN:
 
         # Build a Keras function to run parts of the computation graph
         inputs = model.inputs
-        if model.uses_learning_phase and not isinstance(K.learning_phase(), int):
+        if not isinstance(K.learning_phase(), int):
             inputs += [K.learning_phase()]
         kf = K.function(model.inputs, list(outputs.values()))
 
@@ -947,7 +912,7 @@ class MaskRCNN:
         model_in = [molded_images, image_metas, anchors]
 
         # Run inference
-        if model.uses_learning_phase and not isinstance(K.learning_phase(), int):
+        if not isinstance(K.learning_phase(), int):
             model_in.append(0.)
         outputs_np = kf(model_in)
 

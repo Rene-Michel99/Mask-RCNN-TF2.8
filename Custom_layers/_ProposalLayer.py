@@ -28,21 +28,16 @@ class ProposalLayer(tf.keras.layers.Layer):
 
     def call(self, inputs):
         # Box Scores. Use the foreground class confidence. [Batch, num_rois, 1]
-        print("------------- ProposalLayer -------------")
         scores = inputs[0][:, :, 1]
-        print("scores: {}".format(scores))
         # Box deltas [batch, num_rois, 4]
         deltas = inputs[1]
         deltas = deltas * np.reshape(self.config.RPN_BBOX_STD_DEV, [1, 1, 4])
-        print("deltas: {}".format(deltas))
         # Anchors
         anchors = inputs[2]
-        print("anchors: {}".format(anchors))
 
         # Improve performance by trimming to top anchors by score
         # and doing the rest on the smaller subset.
         pre_nms_limit = tf.minimum(self.config.PRE_NMS_LIMIT, tf.shape(anchors)[1])
-        print("pre_nms_limit: {}".format(pre_nms_limit))
         ix = tf.nn.top_k(scores, pre_nms_limit, sorted=True,
                          name="top_anchors").indices
         scores = batch_slice([scores, ix], lambda x, y: tf.gather(x, y),
@@ -55,7 +50,6 @@ class ProposalLayer(tf.keras.layers.Layer):
             self.config.IMAGES_PER_GPU,
             names=["pre_nms_anchors"]
         )
-        print("pre_nms_anchors: {}".format(pre_nms_anchors))
         # Apply deltas to anchors to get refined anchors.
         # [batch, N, (y1, x1, y2, x2)]
         boxes = batch_slice(
@@ -74,7 +68,6 @@ class ProposalLayer(tf.keras.layers.Layer):
             self.config.IMAGES_PER_GPU,
             names=["refined_anchors_clipped"]
         )
-        print("clipped boxes: {}".format(boxes))
         # Filter out small boxes
         # According to Xinlei Chen's paper, this reduces detection accuracy
         # for small objects, so we're skipping it.
@@ -95,8 +88,6 @@ class ProposalLayer(tf.keras.layers.Layer):
             nms,
             self.config.IMAGES_PER_GPU
         )
-        print("proposal: {}".format(proposals))
-        print("--------------------------")
         return proposals
 
     def compute_output_shape(self, input_shape):

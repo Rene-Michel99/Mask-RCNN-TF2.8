@@ -32,7 +32,6 @@ class PyramidROIAlign(tf.keras.layers.Layer):
 
     def call(self, inputs):
         # Crop boxes [batch, num_boxes, (y1, x1, y2, x2)] in normalized coords
-        print("---- PyramidROIAlign -----")
         boxes = inputs[0]
 
         # Image meta
@@ -44,24 +43,19 @@ class PyramidROIAlign(tf.keras.layers.Layer):
         feature_maps = inputs[2:]
 
         # Assign each ROI to a level in the pyramid based on the ROI area.
-        print("boxes: {}".format(boxes))
         y1, x1, y2, x2 = tf.split(boxes, 4, axis=2)
         h = y2 - y1
         w = x2 - x1
         # Use shape of first image. Images in a batch must have the same size.
         image_shape = parse_image_meta_graph(image_meta)['image_shape'][0]
-        print("image_shape: {}".format(image_shape))
         # Equation 1 in the Feature Pyramid Networks paper. Account for
         # the fact that our coordinates are normalized here.
         # e.g. a 224x224 ROI (in pixels) maps to P4
         image_area = tf.cast(image_shape[0] * image_shape[1], tf.float32)
-        print("image_area: {}".format(image_area))
         roi_level = self.log2_graph(tf.sqrt(h * w) / (224.0 / tf.sqrt(image_area)))
-        print("roi_level: {}".format(roi_level))
         roi_level = tf.minimum(5, tf.maximum(
             2, 4 + tf.cast(tf.round(roi_level), tf.int32)))
         roi_level = tf.squeeze(roi_level, 2)
-        print("roi_level squeezed: {}".format(roi_level))
 
         # Loop through levels and apply ROI pooling to each. P2 to P5.
         pooled = []
@@ -95,7 +89,6 @@ class PyramidROIAlign(tf.keras.layers.Layer):
 
         # Pack pooled features into one tensor
         pooled = tf.concat(pooled, axis=0)
-        print("pooled: {}".format(pooled))
 
         # Pack box_to_level mapping into one array and add another
         # column representing the order of pooled boxes
@@ -116,7 +109,6 @@ class PyramidROIAlign(tf.keras.layers.Layer):
         # Re-add the batch dimension
         shape = tf.concat([tf.shape(boxes)[:2], tf.shape(pooled)[1:]], axis=0)
         pooled = tf.reshape(pooled, shape)
-        print("output: {}\n-------------------".format(pooled))
         return pooled
 
     @staticmethod

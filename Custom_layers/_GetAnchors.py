@@ -2,8 +2,13 @@ import tensorflow as tf
 
 
 class GetAnchors(tf.keras.layers.Layer):
-    def __int__(self):
-        super(GetAnchors, self).__int__()
+    def __init__(self, anchors, name="anchors", **kwargs):
+        super(GetAnchors, self).__init__(name=name, **kwargs)
+        self.anchors = tf.Variable(anchors)
 
-    def call(self, inputs, anchors):
-        return tf.Variable(anchors)
+    def call(self, dummy):
+        return self.anchors
+
+    def get_config(self):
+        config = super(GetAnchors, self).get_config()
+        return config

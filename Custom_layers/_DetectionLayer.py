@@ -35,14 +35,10 @@ class DetectionLayer(tf.keras.layers.Layer):
             [rois, mrcnn_class, mrcnn_bbox, window],
             lambda x, y, w, z: refine_detections_graph(x, y, w, z, self.config),
             self.config.IMAGES_PER_GPU)
-        print("detections_batch: {}".format(detections_batch))
 
         # Reshape output
         # [batch, num_detections, (y1, x1, y2, x2, class_id, class_score)] in
         # normalized coordinates
-        print("reshaping to: {}".format(tf.reshape(
-            detections_batch,
-            [self.config.BATCH_SIZE, self.config.DETECTION_MAX_INSTANCES, 6])))
         return tf.reshape(
             detections_batch,
             [self.config.BATCH_SIZE, self.config.DETECTION_MAX_INSTANCES, 6])
