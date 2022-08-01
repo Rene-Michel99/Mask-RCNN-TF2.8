@@ -1,3 +1,5 @@
 .idea
+.ipynb_checkpoints
 models
 __pycache__
+logs
