@@ -33,7 +33,7 @@ from Custom_layers import (
 # Requires TensorFlow 2.8+
 from distutils.version import LooseVersion
 assert LooseVersion(tf.__version__) >= LooseVersion("2.4")
-tf.compat.v1.disable_eager_execution()
+#tf.compat.v1.disable_eager_execution()
 #import tensorflow.compat.v1 as tf
 #tf.disable_v2_behavior()
 
