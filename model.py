@@ -27,7 +27,8 @@ from Custom_layers import (
     ProposalLayer,
     DetectionLayer,
     DetectionTargetLayer,
-    GetAnchors
+    GetAnchors,
+    NormBoxesGraph
 )
 
 # Requires TensorFlow 2.8+
@@ -93,8 +94,7 @@ class MaskRCNN:
             input_gt_boxes = KL.Input(
                 shape=[None, 4], name="input_gt_boxes", dtype=tf.float32)
             # Normalize coordinates
-            gt_boxes = KL.Lambda(lambda x: norm_boxes_graph(
-                x, K.shape(input_image)[1:3]))(input_gt_boxes)
+            gt_boxes = NormBoxesGraph()([input_gt_boxes, input_image])
             # 3. GT Masks (zero padded)
             # [batch, height, width, MAX_GT_INSTANCES]
             if config.USE_MINI_MASK:
@@ -209,7 +209,7 @@ class MaskRCNN:
             rois, target_class_ids, target_bbox, target_mask =\
                 DetectionTargetLayer(config, name="proposal_targets")([
                     target_rois, input_gt_class_ids, gt_boxes, input_gt_masks]) # problem: rois with shape (1, None, 4)
-            rois = tf.pad(rois, [1, 1], "CONSTANT")
+            #rois = tf.pad(rois, [1, 1], "CONSTANT")
             # Network Heads
             # TODO: verify that this handles zero padded ROIs
             mrcnn_class_logits, mrcnn_class, mrcnn_bbox =\

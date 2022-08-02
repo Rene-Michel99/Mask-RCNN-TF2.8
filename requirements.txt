@@ -1,5 +1,6 @@
 tensorflow==2.8
 scikit-image
+opencv-python
 numpy
 imgaug
 pycocotools
