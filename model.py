@@ -321,8 +321,9 @@ class MaskRCNN:
         """
         # In multi-GPU training, we wrap the model. Get layers
         # of the inner model because they have the weights.
+        skip_mismatch = self.mode == 'training'
         keras_model = self.keras_model
-        keras_model.load_weights(filepath, by_name=by_name)
+        keras_model.load_weights(filepath, by_name=by_name, skip_mismatch=skip_mismatch)
 
         # Update the log directory
         self.set_log_dir(filepath)

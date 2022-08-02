@@ -56,3 +56,4 @@ if not os.path.exists(os.path.join(LOG_PATH, 'mask_rcnn_coco.5')):
     utils.download_trained_weights(os.path.join(LOG_PATH, 'mask_rcnn_coco.5'))
 
 mrcnn = MaskRCNN('training', config, './models')
+mrcnn.load_weights(os.path.join(LOG_PATH, 'mask_rcnn_coco.5'), by_name=True)
