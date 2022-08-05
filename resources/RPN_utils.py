@@ -118,7 +118,7 @@ def fpn_classifier_graph(rois, feature_maps, image_meta,
     x = KL.TimeDistributed(BatchNorm(), name='mrcnn_class_bn2')(x, training=train_bn)
     x = KL.Activation('relu')(x)
 
-    shared = KL.Lambda(lambda x: K.squeeze(K.squeeze(x, 3), 2),
+    shared = KL.Lambda(lambda l: K.squeeze(K.squeeze(l, 3), 2),
                        name="pool_squeeze")(x)
 
     # Classifier head
@@ -187,64 +187,4 @@ def build_fpn_mask_graph(rois, feature_maps, image_meta,
     x = KL.TimeDistributed(KL.Conv2D(num_classes, (1, 1), strides=1, activation="sigmoid"),
                            name="mrcnn_mask")(x)
     return x
-
-
-############################################################
-#  Loss Functions
-############################################################
-
-@tf.function
-def rpn_class_loss_graph(rpn_match, rpn_class_logits):
-    """RPN anchor classifier loss.
-
-    rpn_match: [batch, anchors, 1]. Anchor match type. 1=positive,
-               -1=negative, 0=neutral anchor.
-    rpn_class_logits: [batch, anchors, 2]. RPN classifier logits for BG/FG.
-    """
-    # Squeeze last dim to simplify
-    rpn_match = tf.squeeze(rpn_match, -1)
-    # Get anchor classes. Convert the -1/+1 match to 0/1 values.
-    anchor_class = tf.cast(tf.equal(rpn_match, 1), tf.int32)
-    # Positive and Negative anchors contribute to the loss,
-    # but neutral anchors (match value = 0) don't.
-    indices = tf.where(tf.not_equal(rpn_match, 0))
-    # Pick rows that contribute to the loss and filter out the rest.
-    rpn_class_logits = tf.gather_nd(rpn_class_logits, indices)
-    anchor_class = tf.gather_nd(anchor_class, indices)
-    # Cross entropy loss
-    loss = K.sparse_categorical_crossentropy(target=anchor_class,
-                                             output=rpn_class_logits,
-                                             from_logits=True)
-    loss = K.switch(tf.size(loss) > 0, K.mean(loss), tf.constant(0.0))
-    return loss
-
-
-@tf.function
-def rpn_bbox_loss_graph(config, target_bbox, rpn_match, rpn_bbox):
-    """Return the RPN bounding box loss graph.
-
-    config: the model config object.
-    target_bbox: [batch, max positive anchors, (dy, dx, log(dh), log(dw))].
-        Uses 0 padding to fill in unsed bbox deltas.
-    rpn_match: [batch, anchors, 1]. Anchor match type. 1=positive,
-               -1=negative, 0=neutral anchor.
-    rpn_bbox: [batch, anchors, (dy, dx, log(dh), log(dw))]
-    """
-    # Positive anchors contribute to the loss, but negative and
-    # neutral anchors (match value of 0 or -1) don't.
-    rpn_match = K.squeeze(rpn_match, -1)
-    indices = tf.where(tf.equal(rpn_match, 1))
-
-    # Pick bbox deltas that contribute to the loss
-    rpn_bbox = tf.gather_nd(rpn_bbox, indices)
-
-    # Trim target bounding box deltas to the same length as rpn_bbox.
-    batch_counts = K.sum(tf.cast(tf.equal(rpn_match, 1), tf.int32), axis=1)
-    target_bbox = batch_pack_graph(target_bbox, batch_counts,
-                                   config.IMAGES_PER_GPU)
-
-    loss = smooth_l1_loss(target_bbox, rpn_bbox)
-
-    loss = K.switch(tf.size(loss) > 0, K.mean(loss), tf.constant(0.0))
-    return loss
 

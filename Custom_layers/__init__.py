@@ -7,3 +7,8 @@ from ._NormBoxesGraph import NormBoxesGraph
 from ._ProposalLayer import ProposalLayer
 from ._PyramidROIAlign import PyramidROIAlign
 from ._RPNBBOXLoss import RPNBBOXLoss
+from ._RPNClassLoss import RPNClassLoss
+from ._MRCNNClassLossGraph import MRCNNClassLossGraph
+from ._RPNBboxLoss import RPNBboxLoss
+from ._MRCNNBboxLossGraph import MRCNNBboxLossGraph
+from ._MRCNNMaskLossGraph import MRCNNMaskLossGraph

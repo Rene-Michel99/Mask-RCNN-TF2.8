@@ -1,6 +1,7 @@
 import tensorflow as tf
 import numpy as np
 
+
 def trim_zeros_graph(boxes, name='trim_zeros'):
     """Often boxes are represented with matrices of shape [N, 4] and
     are padded with zeros. This removes zero boxes.
@@ -8,7 +9,7 @@ def trim_zeros_graph(boxes, name='trim_zeros'):
     boxes: [N, 4] matrix of boxes.
     non_zeros: [N] a 1D boolean mask identifying the rows to keep
     """
-    non_zeros = tf.cast(tf.reduce_sum(tf.abs(boxes), axis=1), tf.bool)
+    non_zeros = tf.cast(tf.reduce_sum(tf.abs(boxes), axis=1, name="culpado"), tf.bool)
     boxes = tf.boolean_mask(boxes, non_zeros, name=name)
     return boxes, non_zeros
 
@@ -352,10 +353,10 @@ def detection_targets_graph(proposals, gt_class_ids, gt_boxes, gt_masks, config)
     rois = tf.concat([positive_rois, negative_rois], axis=0)
     N = tf.shape(negative_rois)[0]
     P = tf.maximum(config.TRAIN_ROIS_PER_IMAGE - tf.shape(rois)[0], 0)
-    rois = tf.pad(rois, [(0, P), (0, 0)])
-    roi_gt_boxes = tf.pad(roi_gt_boxes, [(0, N + P), (0, 0)])
-    roi_gt_class_ids = tf.pad(roi_gt_class_ids, [(0, N + P)])
-    deltas = tf.pad(deltas, [(0, N + P), (0, 0)])
-    masks = tf.pad(masks, [[0, N + P], (0, 0), (0, 0)])
+    rois = tf.pad(rois, [(0, P), (0, 0)], "CONSTANT")
+    roi_gt_boxes = tf.pad(roi_gt_boxes, [(0, N + P), (0, 0)], "CONSTANT")
+    roi_gt_class_ids = tf.pad(roi_gt_class_ids, [(0, N + P)], "CONSTANT")
+    deltas = tf.pad(deltas, [(0, N + P), (0, 0)], "CONSTANT")
+    masks = tf.pad(masks, [[0, N + P], (0, 0), (0, 0)], "CONSTANT")
 
     return rois, roi_gt_class_ids, deltas, masks
