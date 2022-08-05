@@ -3,7 +3,7 @@ import cv2 as cv
 import random
 
 from Custom_layers import *
-from resources import utils
+from resources import utils, visualize
 from ShapesConfig import ShapesDataset, ShapesConfig
 from model import MaskRCNN
 os.environ['CUDA_VISIBLE_DEVICES'] = '-1'
@@ -43,5 +43,46 @@ for image_id in image_ids:
 
 mrcnn.train(dataset_train, dataset_val,
             learning_rate=config.LEARNING_RATE,
-            epochs=1,
+            epochs=2,
             layers='heads')
+
+class InferenceConfig(ShapesConfig):
+    GPU_COUNT = 1
+    IMAGES_PER_GPU = 1
+
+
+inference_config = InferenceConfig()
+
+trained_model = os.path.join('logs', 'train', 'mask_rcnn_shapes_0001.h5')
+# Recreate the model in inference mode
+model = MaskRCNN(mode="inference",
+                          config=inference_config,
+                          model_dir='logs')
+
+# Get path to saved weights
+# Either set a specific path or find last trained weights
+# model_path = os.path.join(ROOT_DIR, ".h5 file name here")
+#model_path = model.find_last()
+
+# Load trained weights
+print("Loading weights from ", 'logs/train/mask_rcnn_shapes_0001.h5')
+model.load_weights('logs/train/mask_rcnn_shapes_0001.h5', by_name=True)
+
+
+from resources.Data_utils import load_image_gt, mold_image
+
+# Test on a random image
+image_id = random.choice(dataset_val.image_ids)
+original_image, image_meta, gt_class_id, gt_bbox, gt_mask =\
+    load_image_gt(dataset_val, inference_config,
+                           image_id, use_mini_mask=False)
+
+
+#visualize.display_instances(original_image, gt_bbox, gt_mask, gt_class_id,
+ #                           dataset_train.class_names, figsize=(8, 8))
+
+results = model.detect([original_image], verbose=1)
+
+r = results[0]
+visualize.display_instances(original_image, r['rois'], r['masks'], r['class_ids'],
+                            dataset_val.class_names, r['scores'])
