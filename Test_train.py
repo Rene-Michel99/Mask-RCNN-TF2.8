@@ -1,10 +1,10 @@
 import os
-import cv2 as cv
 import random
 
 from Custom_layers import *
 from resources import utils, visualize
 from ShapesConfig import ShapesDataset, ShapesConfig
+from resources.Data_utils import load_image_gt
 from model import MaskRCNN
 os.environ['CUDA_VISIBLE_DEVICES'] = '-1'
 
@@ -44,7 +44,7 @@ for image_id in image_ids:
 mrcnn.train(dataset_train, dataset_val,
             learning_rate=config.LEARNING_RATE,
             epochs=2,
-            layers='heads')
+            layers='all')
 
 class InferenceConfig(ShapesConfig):
     GPU_COUNT = 1
@@ -67,9 +67,6 @@ model = MaskRCNN(mode="inference",
 # Load trained weights
 print("Loading weights from ", 'logs/train/mask_rcnn_shapes_0001.h5')
 model.load_weights('logs/train/mask_rcnn_shapes_0001.h5', by_name=True)
-
-
-from resources.Data_utils import load_image_gt, mold_image
 
 # Test on a random image
 image_id = random.choice(dataset_val.image_ids)

@@ -1199,10 +1199,10 @@ class MaskRCNN:
                 keep = np.concatenate([keep, keep_bg_ids])
             else:
                 # Fill the rest with repeated bg rois.
-                keep_extra_ids = []
-                if len(keep_bg_ids) > 0:
-                    keep_extra_ids = np.random.choice(
-                        keep_bg_ids, remaining, replace=True)
+                if len(keep_bg_ids) == 0:
+                    keep_bg_ids = np.array([0], dtype=np.int32)
+                keep_extra_ids = np.random.choice(
+                    keep_bg_ids, remaining, replace=True)
                 keep = np.concatenate([keep, keep_extra_ids])
         assert keep.shape[0] == config.TRAIN_ROIS_PER_IMAGE, \
             "keep doesn't match ROI batch size {}, {}".format(
