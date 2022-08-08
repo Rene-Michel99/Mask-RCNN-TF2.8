@@ -1125,7 +1125,7 @@ class MaskRCNN:
             gt_class_ids.dtype)
         assert gt_boxes.dtype == np.int32, "Expected int but got {}".format(
             gt_boxes.dtype)
-        assert gt_masks.dtype == np.bool_, "Expected bool but got {}".format(
+        assert gt_masks.dtype == bool, "Expected bool but got {}".format(
             gt_masks.dtype)
 
         # It's common to add GT Boxes to ROIs but we don't do that here because
@@ -1496,6 +1496,8 @@ class MaskRCNN:
                     outputs = [padding, padding, padding, padding, batch_images, batch_image_meta, batch_rpn_match, batch_rpn_bbox,
                               batch_gt_class_ids, batch_gt_boxes, batch_gt_masks]
 
+
+                    # TODO: adaptar classe para o seguinte formato https://www.tensorflow.org/guide/keras/customizing_what_happens_in_fit#wrapping_up_an_end-to-end_gan_example
                     if random_rois:
                         #inputs.extend([batch_rpn_rois])
                         if detection_targets:

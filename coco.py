@@ -263,7 +263,7 @@ class CocoDataset(utils.Dataset):
 
         # Pack instance masks into an array
         if class_ids:
-            mask = np.stack(instance_masks, axis=2).astype(np.bool)
+            mask = np.stack(instance_masks, axis=2).astype(bool)
             class_ids = np.array(class_ids, dtype=np.int32)
             return mask, class_ids
         else:

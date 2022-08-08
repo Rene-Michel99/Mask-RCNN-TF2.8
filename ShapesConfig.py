@@ -106,7 +106,7 @@ class ShapesDataset(utils.Dataset):
             occlusion = np.logical_and(occlusion, np.logical_not(mask[:, :, i]))
         # Map class names to class IDs.
         class_ids = np.array([self.class_names.index(s[0]) for s in shapes])
-        return mask.astype(np.bool), class_ids.astype(np.int32)
+        return mask.astype(bool), class_ids.astype(np.int32)
 
     def draw_shape(self, image, shape, dims, color):
         """Draws a shape from the given specs."""
