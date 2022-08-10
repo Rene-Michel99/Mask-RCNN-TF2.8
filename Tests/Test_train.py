@@ -3,7 +3,7 @@ import random
 
 from Custom_layers import *
 from resources import utils, visualize
-from ShapesConfig import ShapesDataset, ShapesConfig
+from Configs.ShapesConfig import ShapesDataset, ShapesConfig
 from resources.Data_utils import load_image_gt
 from model import MaskRCNN
 os.environ['CUDA_VISIBLE_DEVICES'] = '-1'
@@ -11,15 +11,15 @@ os.environ['CUDA_VISIBLE_DEVICES'] = '-1'
 
 config = ShapesConfig()
 
-LOG_PATH = "./logs"
-IMAGE_DIR = "../images"
+LOG_PATH = "../logs"
+IMAGE_DIR = "../../images"
 if not os.path.exists(LOG_PATH):
     os.system('mkdir logs')
 
 if not os.path.exists(os.path.join(LOG_PATH, 'mask_rcnn_coco.5')):
     utils.download_trained_weights(os.path.join(LOG_PATH, 'mask_rcnn_coco.5'))
 
-mrcnn = MaskRCNN('training', config, './models')
+mrcnn = MaskRCNN('training', config, '../models')
 mrcnn.load_weights(os.path.join(LOG_PATH, 'mask_rcnn_coco.5'), by_name=True)
 
 
@@ -53,11 +53,11 @@ class InferenceConfig(ShapesConfig):
 
 inference_config = InferenceConfig()
 
-trained_model = os.path.join('logs', 'train', 'mask_rcnn_shapes_0001.h5')
+trained_model = os.path.join('../logs', 'train', 'mask_rcnn_shapes_0001.h5')
 # Recreate the model in inference mode
 model = MaskRCNN(mode="inference",
-                          config=inference_config,
-                          model_dir='logs')
+                 config=inference_config,
+                 model_dir='../logs')
 
 # Get path to saved weights
 # Either set a specific path or find last trained weights

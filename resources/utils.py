@@ -7,7 +7,6 @@ Licensed under the MIT License (see LICENSE for details)
 Written by Waleed Abdulla
 """
 
-import sys
 import os
 import logging
 import math
@@ -22,11 +21,11 @@ import urllib.request
 import shutil
 import warnings
 from distutils.version import LooseVersion
-import tensorflow.keras.backend as K
 
 
 # URL from which to download the latest COCO trained weights
 COCO_MODEL_URL = "https://github.com/matterport/Mask_RCNN/releases/download/v2.0/mask_rcnn_coco.h5"
+DEFAULT_COCO_WEIGHTS_PATH = "./logs/mask_rcnn_coco.h5"
 
 
 ############################################################
@@ -918,11 +917,18 @@ def batch_slice(inputs, graph_fn, batch_size, names=None):
     return result
 
 
-def download_trained_weights(coco_model_path, verbose=1):
+def download_trained_weights(coco_model_path=None, verbose=1):
     """Download COCO trained weights from Releases.
 
     coco_model_path: local path of COCO trained weights
     """
+    if os.path.exists(DEFAULT_COCO_WEIGHTS_PATH) and not coco_model_path:
+        print("Using downloaded weights at %s" % DEFAULT_COCO_WEIGHTS_PATH)
+        return
+    elif coco_model_path and not os.path.exists(coco_model_path):
+        raise ValueError("Could not find coco weights path at %s" % coco_model_path)
+    coco_model_path = coco_model_path if coco_model_path else DEFAULT_COCO_WEIGHTS_PATH
+
     if verbose > 0:
         print("Downloading pretrained model to " + coco_model_path + " ...")
     with urllib.request.urlopen(COCO_MODEL_URL) as resp, open(coco_model_path, 'wb') as out:

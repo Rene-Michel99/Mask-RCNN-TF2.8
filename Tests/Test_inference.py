@@ -2,9 +2,8 @@ import os
 import cv2 as cv
 import random
 
-from Custom_layers import *
 from resources import utils
-from coco import CocoConfig
+from Configs.coco import CocoConfig
 from model import MaskRCNN
 from resources import visualize
 os.environ['CUDA_VISIBLE_DEVICES'] = '-1'
@@ -21,28 +20,30 @@ class InferenceConfig(CocoConfig):
 
 config = InferenceConfig()
 
-LOG_PATH = "./logs"
-IMAGE_DIR = "../images"
+LOG_PATH = "../logs"
+IMAGE_DIR = "Tests/images"
 if not os.path.exists(LOG_PATH):
-    os.system('mkdir logs')
+    os.system('mkdir %s' % LOG_PATH)
 
-if not os.path.exists(os.path.join(LOG_PATH, 'mask_rcnn_coco.5')):
-    utils.download_trained_weights(os.path.join(LOG_PATH, 'mask_rcnn_coco.5'))
+if not os.path.exists(IMAGE_DIR):
+    raise ValueError("Could not find image directory.")
 
-#tf.config.set_soft_device_placement(True)
+utils.download_trained_weights()
+
+
 #tf.debugging.enable_check_numerics()  # modo code reviewer
-tf.debugging.experimental.enable_dump_debug_info(
+'''tf.debugging.experimental.enable_dump_debug_info(  # modo debug
     "./logs/tfdbg2_logdir",
     tensor_debug_mode="FULL_HEALTH",
-    circular_buffer_size=-1)
+    circular_buffer_size=-1)'''
 
 
-mrcnn = MaskRCNN('inference', config, './models')
-#mrcnn.keras_model.save('models/mrcnn_model.h5')
+mrcnn = MaskRCNN('inference', config, '../models')
+#mrcnn.keras_model.save('models/mrcnn_model.h5')   # descomentar linha para salvar modelo e testar a função
 #print(mrcnn.keras_model.summary())
-mrcnn.load_weights(os.path.join(LOG_PATH, 'mask_rcnn_coco.5'), by_name=True)
+mrcnn.load_weights(by_name=True)
 
-class_names = ['person', 'bicycle', 'car', 'motorcycle', 'airplane',
+class_names = ['BG', 'person', 'bicycle', 'car', 'motorcycle', 'airplane',
                'bus', 'train', 'truck', 'boat', 'traffic light',
                'fire hydrant', 'stop sign', 'parking meter', 'bench', 'bird',
                'cat', 'dog', 'horse', 'sheep', 'cow', 'elephant', 'bear',

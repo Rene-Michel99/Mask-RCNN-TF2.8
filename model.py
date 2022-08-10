@@ -312,7 +312,7 @@ class MaskRCNN:
         checkpoint = os.path.join(dir_name, checkpoints[-1])
         return checkpoint
 
-    def load_weights(self, filepath, by_name=False, exclude=None):
+    def load_weights(self, filepath=None, by_name=False, exclude=None):
         """Modified version of the corresponding Keras function with
         the addition of multi-GPU support and the ability to exclude
         some layers from loading.
@@ -320,6 +320,7 @@ class MaskRCNN:
         """
         # In multi-GPU training, we wrap the model. Get layers
         # of the inner model because they have the weights.
+        filepath = filepath if filepath else utils.DEFAULT_COCO_WEIGHTS_PATH
         skip_mismatch = self.mode == 'training'
         keras_model = self.keras_model
         keras_model.load_weights(filepath, by_name=by_name, skip_mismatch=skip_mismatch)
