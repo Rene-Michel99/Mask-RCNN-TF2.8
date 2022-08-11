@@ -6,7 +6,7 @@ from resources import utils, visualize
 from Configs.ShapesConfig import ShapesDataset, ShapesConfig
 from resources.Data_utils import load_image_gt
 from model import MaskRCNN
-os.environ['CUDA_VISIBLE_DEVICES'] = '-1'
+os.environ['CUDA_VISIBLE_DEVICES'] = '-1'  # comentar em caso de usar a GPU
 
 
 config = ShapesConfig()
@@ -53,11 +53,10 @@ class InferenceConfig(ShapesConfig):
 
 inference_config = InferenceConfig()
 
-trained_model = os.path.join('../logs', 'train', 'mask_rcnn_shapes_0001.h5')
 # Recreate the model in inference mode
 model = MaskRCNN(mode="inference",
                  config=inference_config,
-                 model_dir='../logs')
+                 model_dir='./logs/train')
 
 # Get path to saved weights
 # Either set a specific path or find last trained weights
@@ -65,8 +64,8 @@ model = MaskRCNN(mode="inference",
 #model_path = model.find_last()
 
 # Load trained weights
-print("Loading weights from ", 'logs/train/mask_rcnn_shapes_0001.h5')
-model.load_weights('logs/train/mask_rcnn_shapes_0001.h5', by_name=True)
+trained_model = os.path.join('./logs', 'train', 'mask_rcnn_shapes_0001.h5')
+model.load_weights(trained_model, by_name=True)
 
 # Test on a random image
 image_id = random.choice(dataset_val.image_ids)
