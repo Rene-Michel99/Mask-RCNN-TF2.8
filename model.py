@@ -31,6 +31,8 @@ from distutils.version import LooseVersion
 assert LooseVersion(tf.__version__) >= LooseVersion("2.2")
 #tf.compat.v1.disable_eager_execution()
 
+DEFAULT_COCO_WEIGHTS_PATH = './logs/mask_rcnn_coco.h5'
+
 
 class MaskRCNN:
     """Encapsulates the Mask RCNN model functionality.
@@ -320,7 +322,7 @@ class MaskRCNN:
         """
         # In multi-GPU training, we wrap the model. Get layers
         # of the inner model because they have the weights.
-        filepath = filepath if filepath else utils.DEFAULT_COCO_WEIGHTS_PATH
+        filepath = filepath if filepath else DEFAULT_COCO_WEIGHTS_PATH
         skip_mismatch = self.mode == 'training'
         keras_model = self.keras_model
         keras_model.load_weights(filepath, by_name=by_name, skip_mismatch=skip_mismatch)

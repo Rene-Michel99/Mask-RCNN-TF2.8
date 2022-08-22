@@ -21,9 +21,7 @@ class InferenceConfig(CocoConfig):
 config = InferenceConfig()
 
 LOG_PATH = "../logs"
-IMAGE_DIR = "Tests/images"
-if not os.path.exists(LOG_PATH):
-    os.system('mkdir %s' % LOG_PATH)
+IMAGE_DIR = "./images"
 
 if not os.path.exists(IMAGE_DIR):
     raise ValueError("Could not find image directory.")
