@@ -1,5 +1,5 @@
 
-# Medusas Mask R-CNN Tensorflow 2.8
+# Mask R-CNN Tensorflow 2.8
 
 Tradução do código da Mask R-CNN para o Tensorflow 2.8.
 
