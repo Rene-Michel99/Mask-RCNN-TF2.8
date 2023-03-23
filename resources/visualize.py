@@ -14,6 +14,7 @@ import itertools
 import colorsys
 
 import numpy as np
+import cv2 as cv
 from skimage.measure import find_contours
 import matplotlib.pyplot as plt
 from matplotlib import patches,  lines
@@ -139,8 +140,9 @@ def display_instances(image, boxes, masks, class_ids, class_names,
         if not captions:
             class_id = class_ids[i]
             score = scores[i] if scores is not None else None
-            label = class_names[class_id]
-            caption = "{} {:.3f}".format(label, score) if score else label
+            if class_id < len(class_names):
+                label = class_names[class_id]
+                caption = "{} {:.3f}".format(label, score) if score else label
         else:
             caption = captions[i]
         ax.text(x1, y1 + 8, caption,
@@ -165,6 +167,72 @@ def display_instances(image, boxes, masks, class_ids, class_names,
     ax.imshow(masked_image.astype(np.uint8))
     if auto_show:
         plt.show()
+
+
+def get_img_instances(image, boxes, masks, class_ids, class_names,
+                      scores=None, show_mask=True, show_bbox=True,
+                      colors=None, captions=None):
+    """
+    boxes: [num_instance, (y1, x1, y2, x2, class_id)] in image coordinates.
+    masks: [height, width, num_instances]
+    class_ids: [num_instances]
+    class_names: list of class names of the dataset
+    scores: (optional) confidence scores for each box
+    title: (optional) Figure title
+    show_mask, show_bbox: To show masks and bounding boxes or not
+    figsize: (optional) the size of the image
+    colors: (optional) An array or colors to use with each object
+    captions: (optional) A list of strings to use as captions for each object
+    """
+    # Number of instances
+    N = boxes.shape[0]
+    if not N:
+        print("\n*** No instances to display *** \n")
+    else:
+        assert boxes.shape[0] == masks.shape[-1] == class_ids.shape[0]
+
+    # Generate random colors
+    colors = colors or random_colors(N)
+
+    # Show area outside image boundaries.
+    height, width = image.shape[:2]
+    masked_image = image.copy()
+    for i in range(N):
+        color = random.choice(colors)
+
+        # Bounding box
+        if not np.any(boxes[i]):
+            # Skip this instance. Has no bbox. Likely lost in image cropping.
+            continue
+        y1, x1, y2, x2 = boxes[i]
+        if show_bbox:
+            cv.rectangle(masked_image, (x1, y1), (x2, y2), color, 2)
+
+        # Label
+        caption = ""
+        score_color = (0, 0, 0)
+        if not captions:
+            class_id = class_ids[i]
+            score = scores[i] if scores is not None else None
+            if class_id < len(class_names):
+                label = class_names[class_id]
+                caption = "{} {:.3f}".format(label, score) if score else label
+                if score < 0.5:
+                    score_color = (0, 0, 255)
+        else:
+            caption = captions[i]
+
+        cv.rectangle(masked_image, (x1, int(y1-35)), (x1 + 220, y1), color, -1)
+        cv.putText(
+            masked_image, caption, (int(x1), int(y1 - 10)),
+            cv.FONT_HERSHEY_SIMPLEX, 1, score_color, 3, cv.LINE_AA
+        )
+
+        # Mask
+        mask = masks[:, :, i]
+        if show_mask:
+            masked_image = apply_mask(masked_image, mask, color)
+    return masked_image.astype(np.uint8)
 
 
 def display_differences(image,

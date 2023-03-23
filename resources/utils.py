@@ -25,7 +25,7 @@ from distutils.version import LooseVersion
 
 # URL from which to download the latest COCO trained weights
 COCO_MODEL_URL = "https://github.com/matterport/Mask_RCNN/releases/download/v2.0/mask_rcnn_coco.h5"
-DEFAULT_COCO_WEIGHTS_PATH = "../logs/mask_rcnn_coco.h5"
+DEFAULT_COCO_WEIGHTS_PATH = "./logs/mask_rcnn_coco.h5"
 
 
 ############################################################
@@ -922,10 +922,10 @@ def download_trained_weights(coco_model_path=None, verbose=1):
 
     coco_model_path: local path of COCO trained weights
     """
-    if not os.path.exists('../logs') and not coco_model_path:
-        os.system("mkdir %s" % '../logs')
+    if not os.path.exists('./logs') and not coco_model_path:
+        os.system("mkdir %s" % './logs')
 
-    if os.path.exists(DEFAULT_COCO_WEIGHTS_PATH) and coco_model_path:
+    if os.path.exists(DEFAULT_COCO_WEIGHTS_PATH):
         print("Using downloaded weights at %s" % DEFAULT_COCO_WEIGHTS_PATH)
         return
     elif coco_model_path and not os.path.exists(coco_model_path):
