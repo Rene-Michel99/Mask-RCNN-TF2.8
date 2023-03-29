@@ -1,6 +1,7 @@
 import os
 import re
 import datetime
+from enum import Enum
 from collections import OrderedDict
 import multiprocessing
 import tensorflow.keras as keras
@@ -32,6 +33,10 @@ assert LooseVersion(tf.__version__) >= LooseVersion("2.2")
 #tf.compat.v1.disable_eager_execution()
 
 DEFAULT_COCO_WEIGHTS_PATH = './logs/mask_rcnn_coco.h5'
+
+class Mode(Enum):
+    MASK = 'MASK'
+    OBJECT_LOCATION =  'OBJECT_LOCATION'
 
 
 class MaskRCNN:
@@ -267,16 +272,20 @@ class MaskRCNN:
 
             # Create masks for detections
             detection_boxes = KL.Lambda(lambda x: x[..., :4])(detections)
-            mrcnn_mask = build_fpn_mask_graph(detection_boxes, mrcnn_feature_maps,
-                                              input_image_meta,
-                                              config.MASK_POOL_SIZE,
-                                              config.NUM_CLASSES,
-                                              train_bn=config.TRAIN_BN)
-
-            model = KM.Model([input_image, input_image_meta, input_anchors],
-                             [detections, mrcnn_class, mrcnn_bbox,
-                                 mrcnn_mask, rpn_rois, rpn_class, rpn_bbox],
-                             name='mask_rcnn')
+            if config.MODE == Mode.MASK.value:
+                mrcnn_mask = build_fpn_mask_graph(
+                    detection_boxes, mrcnn_feature_maps,
+                    input_image_meta, config.MASK_POOL_SIZE,
+                    config.NUM_CLASSES, train_bn=config.TRAIN_BN
+                )
+                model = KM.Model(
+                        [input_image, input_image_meta, input_anchors],
+                        [detections, mrcnn_class, mrcnn_bbox,
+                         mrcnn_mask, rpn_rois, rpn_class, rpn_bbox], name='mask_rcnn')
+            else:
+                model = KM.Model(
+                    [input_image, input_image_meta, input_anchors],
+                    [detections, rpn_rois, rpn_class, rpn_bbox], name='mask_rcnn')
 
         # Add multi-GPU support.
         if config.GPU_COUNT > 1:
@@ -684,8 +693,9 @@ class MaskRCNN:
         windows = np.stack(windows)
         return molded_images, image_metas, windows
 
-    def unmold_detections(self, detections, mrcnn_mask, original_image_shape,
-                          image_shape, window):
+    @staticmethod
+    def unmold_detections(detections, original_image_shape,
+                          image_shape, window, mrcnn_mask=None):
         """Reformats the detections of one image from the format of the neural
         network output to a format suitable for use in the rest of the
         application.
@@ -712,7 +722,7 @@ class MaskRCNN:
         boxes = detections[:N, :4]
         class_ids = detections[:N, 4].astype(np.int32)
         scores = detections[:N, 5]
-        masks = mrcnn_mask[np.arange(N), :, :, class_ids]
+        masks = mrcnn_mask[np.arange(N), :, :, class_ids] if mrcnn_mask is not None else None
 
         # Translate normalized coordinates in the resized image to pixel
         # coordinates in the original image before resizing
@@ -735,17 +745,18 @@ class MaskRCNN:
             boxes = np.delete(boxes, exclude_ix, axis=0)
             class_ids = np.delete(class_ids, exclude_ix, axis=0)
             scores = np.delete(scores, exclude_ix, axis=0)
-            masks = np.delete(masks, exclude_ix, axis=0)
+            masks = np.delete(masks, exclude_ix, axis=0) if mrcnn_mask is not None else None
             N = class_ids.shape[0]
 
         # Resize masks to original image size and set boundary threshold.
         full_masks = []
-        for i in range(N):
-            # Convert neural network mask to full size mask
-            full_mask = utils.unmold_mask(masks[i], boxes[i], original_image_shape)
-            full_masks.append(full_mask)
-        full_masks = np.stack(full_masks, axis=-1)\
-            if full_masks else np.empty(original_image_shape[:2] + (0,))
+        if mrcnn_mask is not None:
+            for i in range(N):
+                # Convert neural network mask to full size mask
+                full_mask = utils.unmold_mask(masks[i], boxes[i], original_image_shape)
+                full_masks.append(full_mask)
+            full_masks = np.stack(full_masks, axis=-1)\
+                if full_masks else np.empty(original_image_shape[:2] + (0,))
 
         return boxes, class_ids, scores, full_masks
 
@@ -794,15 +805,32 @@ class MaskRCNN:
             utils.log("anchors", anchors)
 
         # Run object detection
-        detections, _, _, mrcnn_mask, _, _, _ =\
-            self.keras_model.predict([molded_images, image_metas, anchors], verbose=0)
+        return self._process_detections(
+            images, molded_images,
+            image_metas, anchors, windows=windows
+        )
+
+    def _process_detections(self, images, molded_images, image_metas, anchors, windows=None):
+        mrcnn_mask = None
+        using_mask_mode = self.config.MODE == Mode.MASK.value
+        if using_mask_mode:
+            detections, _, _, mrcnn_mask, _, _, _ = self.keras_model.predict(
+                [molded_images, image_metas, anchors], verbose=0
+            )
+        else:
+            detections, _, _, _ = self.keras_model.predict(
+                [molded_images, image_metas, anchors], verbose=0
+            )
+
         # Process detections
         results = []
         for i, image in enumerate(images):
-            final_rois, final_class_ids, final_scores, final_masks =\
-                self.unmold_detections(detections[i], mrcnn_mask[i],
-                                       image.shape, molded_images[i].shape,
-                                       windows[i])
+            window = windows[i] if windows is not None else [0, 0, image.shape[0], image.shape[1]]
+            mask_item = mrcnn_mask[i] if using_mask_mode else None
+            final_rois, final_class_ids, final_scores, final_masks = self.unmold_detections(
+                detections[i], image.shape, molded_images[i].shape,
+                window, mrcnn_mask=mask_item
+            )
             results.append({
                 "rois": final_rois,
                 "class_ids": final_class_ids,
@@ -850,24 +878,12 @@ class MaskRCNN:
             utils.log("molded_images", molded_images)
             utils.log("image_metas", image_metas)
             utils.log("anchors", anchors)
+
         # Run object detection
-        detections, _, _, mrcnn_mask, _, _, _ =\
-            self.keras_model.predict([molded_images, image_metas, anchors], verbose=0)
-        # Process detections
-        results = []
-        for i, image in enumerate(molded_images):
-            window = [0, 0, image.shape[0], image.shape[1]]
-            final_rois, final_class_ids, final_scores, final_masks =\
-                self.unmold_detections(detections[i], mrcnn_mask[i],
-                                       image.shape, molded_images[i].shape,
-                                       window)
-            results.append({
-                "rois": final_rois,
-                "class_ids": final_class_ids,
-                "scores": final_scores,
-                "masks": final_masks,
-            })
-        return results
+        return self._process_detections(
+            molded_images, molded_images,
+            image_metas, anchors
+        )
 
     def get_anchors(self, image_shape):
         """Returns anchor pyramid for the given image size."""
