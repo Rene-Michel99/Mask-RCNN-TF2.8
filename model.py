@@ -1350,6 +1350,7 @@ class MaskRCNN:
         rois[-remaining_count:] = global_rois
         return rois
 
+    # TODO: Fix data generator consuming extreme quantity of RAM
     def _data_generator(self, dataset, config, shuffle=True, augment=False, augmentation=None,
                        random_rois=0, batch_size=1, detection_targets=False,
                        no_augmentation_sources=None):
