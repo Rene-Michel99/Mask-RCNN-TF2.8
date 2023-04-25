@@ -3,7 +3,7 @@ import cv2 as cv
 import random
 
 from resources import utils
-from Configs._coco import CocoConfig
+from Configs import CocoConfig
 from model import MaskRCNN
 from resources import visualize
 os.environ['CUDA_VISIBLE_DEVICES'] = '-1'
