@@ -3,7 +3,7 @@ import numpy as np
 import cv2
 import random
 import math
-from Configs.config import Config
+from Configs._config import Config
 
 
 class ShapesConfig(Config):

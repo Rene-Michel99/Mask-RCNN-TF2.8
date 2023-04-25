@@ -21,8 +21,8 @@ ROOT_DIR = os.path.abspath("../../")
 
 # Import Mask RCNN
 sys.path.append(ROOT_DIR)  # To find local version of the library
-from mrcnn.config import Config
-from mrcnn import utils
+from Configs import Config
+from resources import utils
 
 
 class ShapesConfig(Config):

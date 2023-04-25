@@ -52,8 +52,9 @@ ROOT_DIR = os.path.abspath("../../")
 
 # Import Mask RCNN
 sys.path.append(ROOT_DIR)  # To find local version of the library
-from mrcnn.config import Config
-from mrcnn import model as modellib, utils
+from Configs import Config
+import model as modellib
+from resources import utils
 
 # Path to trained weights file
 COCO_MODEL_PATH = os.path.join(ROOT_DIR, "mask_rcnn_coco.h5")
@@ -74,6 +75,7 @@ class CocoConfig(Config):
     to the COCO dataset.
     """
     # Give the configuration a recognizable name
+    MODE = "MASK"
     NAME = "coco"
 
     # We use a GPU with 12GB memory, which can fit two images.
@@ -262,7 +264,7 @@ class CocoDataset(utils.Dataset):
 
         # Pack instance masks into an array
         if class_ids:
-            mask = np.stack(instance_masks, axis=2).astype(np.bool)
+            mask = np.stack(instance_masks, axis=2).astype(bool)
             class_ids = np.array(class_ids, dtype=np.int32)
             return mask, class_ids
         else:

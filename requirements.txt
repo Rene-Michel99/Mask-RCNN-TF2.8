@@ -1,5 +1,5 @@
-tensorflow==2.8
-scikit-image==0.16.2
+tensorflow==2.9.1
+scikit-image==0.20.0
 opencv-python
 numpy
 imgaug
