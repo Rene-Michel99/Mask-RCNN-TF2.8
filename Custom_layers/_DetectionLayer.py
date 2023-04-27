@@ -1,5 +1,5 @@
 import tensorflow as tf
-from .Common import norm_boxes_graph, refine_detections_graph
+from ._Common import norm_boxes_graph, refine_detections_graph
 from resources.utils import batch_slice, parse_image_meta_graph
 
 
@@ -16,6 +16,7 @@ class DetectionLayer(tf.keras.layers.Layer):
         super(DetectionLayer, self).__init__(**kwargs)
         self.config = config
 
+    @tf.function
     def call(self, inputs):
         rois = inputs[0]
         mrcnn_class = inputs[1]

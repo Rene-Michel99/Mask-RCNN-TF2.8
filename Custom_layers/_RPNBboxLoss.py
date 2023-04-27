@@ -1,7 +1,7 @@
 import tensorflow as tf
 from tensorflow.keras import backend as K
-from resources.utils import smooth_l1_loss
 from resources.Data_utils import batch_pack_graph
+from ._Common import smooth_l1_loss
 
 
 class RPNBboxLoss(tf.keras.layers.Layer):
@@ -9,6 +9,7 @@ class RPNBboxLoss(tf.keras.layers.Layer):
         super(RPNBboxLoss, self).__init__(**kwargs)
         self.images_per_gpu = images_per_gpu
 
+    @tf.function
     def call(self, inputs):
         """Return the RPN bounding box loss graph.
 
@@ -35,9 +36,16 @@ class RPNBboxLoss(tf.keras.layers.Layer):
         target_bbox = batch_pack_graph(target_bbox, batch_counts,
                                        self.images_per_gpu)
 
-        loss = smooth_l1_loss(target_bbox, rpn_bbox)
+        loss = smooth_l1_loss(target_bbox, rpn_bbox, name="RPNBboxLoss")
         self.add_metric(loss, name="rpn_bbox_loss")
 
-        loss = K.switch(tf.size(loss) > 0, K.mean(loss), tf.constant(0.0))
-        self.add_loss(tf.reduce_mean(loss, keepdims=True) * 1.)
-        return loss
+        #loss = K.switch(tf.size(loss) > 0, K.mean(loss), tf.constant(0.0))
+        #self.add_loss(tf.reduce_mean(loss, keepdims=True) * 1.)
+        return K.mean(loss)
+
+    def get_config(self):
+        config = super().get_config()
+        config.update({
+            "images_per_gpu": self.images_per_gpu,
+        })
+        return config

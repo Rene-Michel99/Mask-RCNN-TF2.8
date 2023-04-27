@@ -5,6 +5,7 @@ class MRCNNClassLossGraph(tf.keras.layers.Layer):
     def __init__(self, *args, **kwargs):
         super(MRCNNClassLossGraph, self).__init__(**kwargs)
 
+    @tf.function
     def call(self, inputs):
         """Loss for the classifier head of Mask RCNN.
 
@@ -40,7 +41,5 @@ class MRCNNClassLossGraph(tf.keras.layers.Layer):
 
         # Computer loss mean. Use only predictions that contribute
         # to the loss to get a correct mean.
-        loss = tf.reduce_sum(loss) / tf.reduce_sum(pred_active)
-        self.add_loss(tf.reduce_mean(loss, keepdims=True) * 1.)
-        return loss
+        return tf.reduce_sum(loss) / tf.reduce_sum(pred_active)
 

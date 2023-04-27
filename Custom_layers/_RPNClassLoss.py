@@ -6,6 +6,7 @@ class RPNClassLoss(tf.keras.layers.Layer):
     def __init__(self, **kwargs):
         super(RPNClassLoss, self).__init__(**kwargs)
 
+    @tf.function
     def call(self, inputs):
         """RPN anchor classifier loss.
             rpn_match: [batch, anchors, 1]. Anchor match type. 1=positive,
@@ -36,6 +37,6 @@ class RPNClassLoss(tf.keras.layers.Layer):
         )
         self.add_metric(metric, name="rpn_class_loss")
 
-        loss = K.switch(tf.size(loss) > 0, K.mean(loss), tf.constant(0.0))
-        self.add_loss(tf.reduce_mean(loss, keepdims=True) * 1.)
-        return loss
+        #loss = K.switch(tf.size(loss) > 0, K.mean(loss), tf.constant(0.0))
+        #self.add_loss(tf.reduce_mean(loss, keepdims=True) * 1.)
+        return K.mean(loss)

@@ -1,11 +1,8 @@
 import tensorflow as tf
-import numpy as np
 import tensorflow.keras.layers as KL
 import tensorflow.keras.models as KM
 import tensorflow.keras.backend as K
 
-from .utils import smooth_l1_loss, compute_overlaps
-from .Data_utils import batch_pack_graph
 from Custom_layers import (
     PyramidROIAlign,
     BatchNorm
@@ -106,8 +103,8 @@ def fpn_classifier_graph(rois, feature_maps, image_meta,
     """
     # ROI Pooling
     # Shape: [batch, num_rois, POOL_SIZE, POOL_SIZE, channels]
-    x = PyramidROIAlign([pool_size, pool_size],
-                        name="roi_align_classifier")([rois, image_meta] + feature_maps)
+    x = PyramidROIAlign(
+        [pool_size, pool_size], name="roi_align_classifier")([rois, image_meta] + feature_maps)
     # Two 1024 FC layers (implemented with Conv2D for consistency)
     x = KL.TimeDistributed(KL.Conv2D(fc_layers_size, (pool_size, pool_size), padding="valid"),
                            name="mrcnn_class_conv1")(x)
@@ -154,8 +151,8 @@ def build_fpn_mask_graph(rois, feature_maps, image_meta,
     """
     # ROI Pooling
     # Shape: [batch, num_rois, MASK_POOL_SIZE, MASK_POOL_SIZE, channels]
-    x = PyramidROIAlign([pool_size, pool_size],
-                        name="roi_align_mask")([rois, image_meta] + feature_maps)
+    x = PyramidROIAlign(
+        [pool_size, pool_size], name="roi_align_mask")([rois, image_meta] + feature_maps)
 
     # Conv layers
     x = KL.TimeDistributed(KL.Conv2D(256, (3, 3), padding="same"),

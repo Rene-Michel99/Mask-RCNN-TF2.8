@@ -122,17 +122,6 @@ def parse_image_meta_graph(meta):
     }
 
 
-def smooth_l1_loss(y_true, y_pred):
-    """Implements Smooth-L1 loss.
-    y_tru
-    e and y_pred are typically: [N, 4], but could be any shape.
-    """
-    diff = tf.abs(y_true - y_pred)
-    less_than_one = tf.cast(tf.less(diff, 1.0), "float32")
-    loss = (less_than_one * (0.5 * diff ** 2)) + (1 - less_than_one) * (diff - 0.5)
-    return loss
-
-
 ############################################################
 #  Bounding Boxes
 ############################################################
@@ -987,12 +976,12 @@ def resize(image, output_shape, order=1, mode='constant', cval=0, clip=True,
         # New in 0.14: anti_aliasing. Default it to False for backward
         # compatibility with skimage 0.13.
         return skimage.transform.resize(
-            image, output_shape,
+            image.astype(np.uint8), output_shape,
             order=order, mode=mode, cval=cval, clip=clip,
             preserve_range=preserve_range, anti_aliasing=anti_aliasing,
             anti_aliasing_sigma=anti_aliasing_sigma)
     else:
         return skimage.transform.resize(
-            image, output_shape,
+            image.astype(np.uint8), output_shape,
             order=order, mode=mode, cval=cval, clip=clip,
             preserve_range=preserve_range)

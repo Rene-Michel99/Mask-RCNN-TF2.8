@@ -5,6 +5,7 @@ class NormBoxesGraph(tf.keras.layers.Layer):
     def __init__(self, *args, **kwargs):
         super(NormBoxesGraph, self).__init__(**kwargs)
 
+    @tf.function
     def call(self, inputs):
         """Converts boxes from pixel coordinates to normalized coordinates.
         boxes: [..., (y1, x1, y2, x2)] in pixel coordinates

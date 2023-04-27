@@ -1,6 +1,6 @@
 import tensorflow as tf
 from resources.utils import batch_slice
-from .Common import detection_targets_graph
+from ._Common import detection_targets_graph
 
 
 class DetectionTargetLayer(tf.keras.layers.Layer):
@@ -57,5 +57,13 @@ class DetectionTargetLayer(tf.keras.layers.Layer):
              self.config.MASK_SHAPE[1])  # masks
         ]
 
-    def compute_mask(self, inputs, mask=None):
+    @staticmethod
+    def compute_mask(inputs, mask=None):
         return [None, None, None, None]
+
+    def get_config(self):
+        config = super().get_config()
+        config.update({
+            "config": "config",
+        })
+        return config

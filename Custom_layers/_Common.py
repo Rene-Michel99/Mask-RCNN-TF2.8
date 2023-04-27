@@ -2,6 +2,7 @@ import tensorflow as tf
 import numpy as np
 
 
+@tf.function
 def trim_zeros_graph(boxes, name='trim_zeros'):
     """Often boxes are represented with matrices of shape [N, 4] and
     are padded with zeros. This removes zero boxes.
@@ -9,7 +10,7 @@ def trim_zeros_graph(boxes, name='trim_zeros'):
     boxes: [N, 4] matrix of boxes.
     non_zeros: [N] a 1D boolean mask identifying the rows to keep
     """
-    non_zeros = tf.cast(tf.reduce_sum(tf.abs(boxes), axis=1, name="culpado"), tf.bool)
+    non_zeros = tf.cast(tf.reduce_sum(tf.abs(boxes), axis=1, name="non_zeros"), tf.bool)
     boxes = tf.boolean_mask(boxes, non_zeros, name=name)
     return boxes, non_zeros
 
@@ -61,6 +62,7 @@ def refine_detections_graph(rois, probs, deltas, window, config):
     pre_nms_rois = tf.gather(refined_rois,   keep)
     unique_pre_nms_class_ids = tf.unique(pre_nms_class_ids)[0]
 
+    @tf.function
     def nms_keep_map(class_id):
         """Apply Non-Maximum Suppression on ROIs of the given class."""
         # Indices of ROIs of the given class
@@ -107,10 +109,11 @@ def refine_detections_graph(rois, probs, deltas, window, config):
 
     # Pad with zeros if detections < DETECTION_MAX_INSTANCES
     gap = config.DETECTION_MAX_INSTANCES - tf.shape(detections)[0]
-    detections = tf.pad(detections, [(0, gap), (0, 0)], "CONSTANT")
+    detections = tf.pad(detections, [(0, gap), (0, 0)], "CONSTANT", name="constant_detections_pad")
     return detections
 
 
+@tf.function
 def norm_boxes_graph(boxes, shape):
     """Converts boxes from pixel coordinates to normalized coordinates.
     boxes: [..., (y1, x1, y2, x2)] in pixel coordinates
@@ -125,9 +128,10 @@ def norm_boxes_graph(boxes, shape):
     h, w = tf.split(tf.cast(shape, tf.float32), 2)
     scale = tf.concat([h, w, h, w], axis=-1) - tf.constant(1.0)
     shift = tf.constant([0., 0., 1., 1.])
-    return tf.divide(boxes - shift, scale)
+    return tf.divide(boxes - shift, scale, name="divided_norm_boxes_graph")
 
 
+@tf.function
 def apply_box_deltas_graph(boxes, deltas):
     """Applies the given deltas to the given boxes.
     boxes: [N, (y1, x1, y2, x2)] boxes to update
@@ -148,10 +152,11 @@ def apply_box_deltas_graph(boxes, deltas):
     x1 = center_x - 0.5 * width
     y2 = y1 + height
     x2 = x1 + width
-    result = tf.stack([y1, x1, y2, x2], axis=1, name="apply_box_deltas_out")
+    result = tf.stack([y1, x1, y2, x2], axis=1, name="stacked_apply_box_deltas")
     return result
 
 
+@tf.function
 def clip_boxes_graph(boxes, window):
     """
     boxes: [N, (y1, x1, y2, x2)]
@@ -165,11 +170,12 @@ def clip_boxes_graph(boxes, window):
     x1 = tf.maximum(tf.minimum(x1, wx2), wx1)
     y2 = tf.maximum(tf.minimum(y2, wy2), wy1)
     x2 = tf.maximum(tf.minimum(x2, wx2), wx1)
-    clipped = tf.concat([y1, x1, y2, x2], axis=1, name="clipped_boxes")
+    clipped = tf.concat([y1, x1, y2, x2], axis=1, name="concated_clipped_boxes_graph")
     clipped.set_shape((clipped.shape[0], 4))
     return clipped
 
 
+@tf.function
 def overlaps_graph(boxes1, boxes2):
     """Computes IoU overlaps between two sets of boxes.
     boxes1, boxes2: [N, (y1, x1, y2, x2)].
@@ -195,10 +201,11 @@ def overlaps_graph(boxes1, boxes2):
     union = b1_area + b2_area - intersection
     # 4. Compute IoU and reshape to [boxes1, boxes2]
     iou = intersection / union
-    overlaps = tf.reshape(iou, [tf.shape(boxes1)[0], tf.shape(boxes2)[0]])
+    overlaps = tf.reshape(iou, [tf.shape(boxes1)[0], tf.shape(boxes2)[0]], name="reshaped_overlaps_graph")
     return overlaps
 
 
+@tf.function
 def box_refinement_graph(box, gt_box):
     """Compute refinement needed to transform box to gt_box.
     box and gt_box are [N, (y1, x1, y2, x2)]
@@ -221,10 +228,25 @@ def box_refinement_graph(box, gt_box):
     dh = tf.math.log(gt_height / height)
     dw = tf.math.log(gt_width / width)
 
-    result = tf.stack([dy, dx, dh, dw], axis=1)
+    result = tf.stack([dy, dx, dh, dw], axis=1, name="stacked_box_refinement_graph")
     return result
 
 
+@tf.function
+def smooth_l1_loss(y_true, y_pred, name):
+    """Implements Smooth-L1 loss.
+    y_tru
+    e and y_pred are typically: [N, 4], but could be any shape.
+    """
+    diff = tf.abs(y_true - y_pred)
+    less_than_one = tf.cast(tf.less(diff, 1.0), "float32")
+    #loss = (less_than_one * (0.5 * diff ** 2)) + (1 - less_than_one) * (diff - 0.5)
+    p1 = tf.multiply(less_than_one, (0.5 * diff ** 2), name=f"p1_{name}")
+    p2 = tf.multiply((1 - less_than_one), (diff - 0.5), name=f"p2_{name}")
+    return p1 + p2
+
+
+@tf.function
 def detection_targets_graph(proposals, gt_class_ids, gt_boxes, gt_masks, config):
     """Generates detection targets for one image. Subsamples proposals and
     generates target class IDs, bounding box deltas, and masks for each.
@@ -337,9 +359,10 @@ def detection_targets_graph(proposals, gt_class_ids, gt_boxes, gt_masks, config)
         x2 = (x2 - gt_x1) / gt_w
         boxes = tf.concat([y1, x1, y2, x2], 1)
     box_ids = tf.range(0, tf.shape(roi_masks)[0])
-    masks = tf.image.crop_and_resize(tf.cast(roi_masks, tf.float32), boxes,
-                                     box_ids,
-                                     config.MASK_SHAPE)
+    masks = tf.image.crop_and_resize(
+        tf.clip_by_value(tf.cast(roi_masks, tf.float32), 0, 255),
+        boxes, box_ids, config.MASK_SHAPE
+    )
     # Remove the extra dimension from masks.
     masks = tf.squeeze(masks, axis=3)
 
@@ -352,10 +375,10 @@ def detection_targets_graph(proposals, gt_class_ids, gt_boxes, gt_masks, config)
     rois = tf.concat([positive_rois, negative_rois], axis=0)
     N = tf.shape(negative_rois)[0]
     P = tf.maximum(config.TRAIN_ROIS_PER_IMAGE - tf.shape(rois)[0], 0)
-    rois = tf.pad(rois, [(0, P), (0, 0)], "CONSTANT")
+    rois = tf.pad(rois, [(0, P), (0, 0)], "CONSTANT", name="padded_rois_detection_targets_graph")
     roi_gt_boxes = tf.pad(roi_gt_boxes, [(0, N + P), (0, 0)], "CONSTANT")
-    roi_gt_class_ids = tf.pad(roi_gt_class_ids, [(0, N + P)], "CONSTANT")
-    deltas = tf.pad(deltas, [(0, N + P), (0, 0)], "CONSTANT")
-    masks = tf.pad(masks, [[0, N + P], (0, 0), (0, 0)], "CONSTANT")
+    roi_gt_class_ids = tf.pad(roi_gt_class_ids, [(0, N + P)], "CONSTANT", name="padded_rois_class_ids_detection_targets_graph")
+    deltas = tf.pad(deltas, [(0, N + P), (0, 0)], "CONSTANT", name="padded_deltas_detection_targets_graph")
+    masks = tf.pad(masks, [[0, N + P], (0, 0), (0, 0)], "CONSTANT", name="padded_masks_detection_targets_graph")
 
     return rois, roi_gt_class_ids, deltas, masks

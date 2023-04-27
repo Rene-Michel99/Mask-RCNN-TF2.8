@@ -64,7 +64,7 @@ model = MaskRCNN(mode="inference",
 #model_path = model.find_last()
 
 # Load trained weights
-trained_model = os.path.join('./logs', 'train', 'mask_rcnn_shapes_0001.h5')
+trained_model = os.path.join('./logs', 'train', 'train', 'mask_rcnn_shapes_0001.h5')
 model.load_weights(trained_model, by_name=True)
 
 # Test on a random image
