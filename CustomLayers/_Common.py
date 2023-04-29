@@ -17,7 +17,16 @@ def trim_zeros_graph(boxes, name='trim_zeros'):
 
 # [rois, mrcnn_class, mrcnn_bbox, window],
 @tf.function
-def refine_detections_graph(rois, probs, deltas, window, config):
+def refine_detections_graph(
+        rois,
+        probs,
+        deltas,
+        window,
+        bbox_std_dev,
+        detection_min_confidence,
+        detection_max_instances,
+        detections_nms_threshold
+):
     """Refine classified proposals and filter overlaps and return final
     detections.
 
@@ -42,15 +51,15 @@ def refine_detections_graph(rois, probs, deltas, window, config):
     # Apply bounding box deltas
     # Shape: [boxes, (y1, x1, y2, x2)] in normalized coordinates
     refined_rois = apply_box_deltas_graph(
-        rois, deltas_specific * config.BBOX_STD_DEV)
+        rois, deltas_specific * bbox_std_dev)
     # Clip boxes to image window
     refined_rois = clip_boxes_graph(refined_rois, window)
 
     # Filter out background boxes
     keep = tf.where(class_ids > 0)[:, 0]
     # Filter out low confidence boxes
-    if config.DETECTION_MIN_CONFIDENCE:
-        conf_keep = tf.where(class_scores >= config.DETECTION_MIN_CONFIDENCE)[:, 0]
+    if detection_min_confidence:
+        conf_keep = tf.where(class_scores >= detection_min_confidence)[:, 0]
         keep = tf.sets.intersection(tf.expand_dims(keep, 0),
                                     tf.expand_dims(conf_keep, 0))
         keep = tf.sparse.to_dense(keep)[0]
@@ -71,16 +80,16 @@ def refine_detections_graph(rois, probs, deltas, window, config):
         class_keep = tf.image.non_max_suppression(
                 tf.gather(pre_nms_rois, ixs),
                 tf.gather(pre_nms_scores, ixs),
-                max_output_size=config.DETECTION_MAX_INSTANCES,
-                iou_threshold=config.DETECTION_NMS_THRESHOLD)
+                max_output_size=detection_max_instances,
+                iou_threshold=detections_nms_threshold)
         # Map indices
         class_keep = tf.gather(keep, tf.gather(ixs, class_keep))
         # Pad with -1 so returned tensors have the same shape
-        gap = config.DETECTION_MAX_INSTANCES - tf.shape(class_keep)[0]
-        class_keep = tf.pad(class_keep, [(0, gap)],
+        _gap = detection_max_instances - tf.shape(class_keep)[0]
+        class_keep = tf.pad(class_keep, [(0, _gap)],
                             mode='CONSTANT', constant_values=-1)
         # Set shape so map_fn() can infer result shape
-        class_keep.set_shape([config.DETECTION_MAX_INSTANCES])
+        class_keep.set_shape([detection_max_instances])
         return class_keep
 
     # 2. Map over class IDs
@@ -93,7 +102,7 @@ def refine_detections_graph(rois, probs, deltas, window, config):
                                 tf.expand_dims(nms_keep, 0))
     keep = tf.sparse.to_dense(keep)[0]
     # Keep top detections
-    roi_count = config.DETECTION_MAX_INSTANCES
+    roi_count = detection_max_instances
     class_scores_keep = tf.gather(class_scores, keep)
     num_keep = tf.minimum(tf.shape(class_scores_keep)[0], roi_count)
     top_ids = tf.nn.top_k(class_scores_keep, k=num_keep, sorted=True)[1]
@@ -108,7 +117,7 @@ def refine_detections_graph(rois, probs, deltas, window, config):
         ], axis=1, name="concat_detections_refine_detections_graph")
 
     # Pad with zeros if detections < DETECTION_MAX_INSTANCES
-    gap = config.DETECTION_MAX_INSTANCES - tf.shape(detections)[0]
+    gap = detection_max_instances - tf.shape(detections)[0]
     detections = tf.pad(detections, [(0, gap), (0, 0)], "CONSTANT", name="constant_detections_pad")
     return detections
 

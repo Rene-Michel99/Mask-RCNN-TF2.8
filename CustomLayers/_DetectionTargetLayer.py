@@ -36,7 +36,8 @@ class DetectionTargetLayer(tf.keras.layers.Layer):
             roi_positive_ratio,
             bbox_std_dev,
             use_mini_mask,
-            **kwargs):
+            **kwargs
+    ):
         super(DetectionTargetLayer, self).__init__(**kwargs)
         self.images_per_gpu = images_per_gpu
         self.train_rois_per_image = train_rois_per_image
@@ -86,6 +87,11 @@ class DetectionTargetLayer(tf.keras.layers.Layer):
     def get_config(self):
         config = super().get_config()
         config.update({
-            "config": "config",
+            "images_per_gpu": self.images_per_gpu,
+            "train_rois_per_image": self.train_rois_per_image,
+            "mask_shape": self.mask_shape,
+            "roi_positive_ratio": self.roi_positive_ratio,
+            "bbox_std_dev": self.bbox_std_dev,
+            "use_mini_mask": self.use_mini_mask
         })
         return config

@@ -180,11 +180,14 @@ class MaskRCNN:
         # and zero padded.
         proposal_count = config.POST_NMS_ROIS_TRAINING if mode == "training"\
             else config.POST_NMS_ROIS_INFERENCE
-        rpn_rois = ProposalLayer(
+        rpn_rois = ProposalLayer( # noqa
             proposal_count=proposal_count,
             nms_threshold=config.RPN_NMS_THRESHOLD,
             name="ROI",
-            config=config)([rpn_class, rpn_bbox, anchors])
+            images_per_gpu=config.IMAGES_PER_GPU,
+            pre_nms_limit=config.PRE_NMS_LIMIT,
+            rpn_bbox_std_dev=config.RPN_BBOX_STD_DEV
+        )([rpn_class, rpn_bbox, anchors])
 
         if mode == "training":
             # Class ID mask to mark class IDs supported by the dataset the image
@@ -218,52 +221,79 @@ class MaskRCNN:
                 name="proposal_targets")([target_rois, input_gt_class_ids, gt_boxes, input_gt_masks])
             # Network Heads
             # TODO: verify that this handles zero padded ROIs
-            mrcnn_class_logits, mrcnn_class, mrcnn_bbox =\
-                fpn_classifier_graph(rois, mrcnn_feature_maps, input_image_meta,
-                                     config.POOL_SIZE, config.NUM_CLASSES,
-                                     train_bn=config.TRAIN_BN,
-                                     fc_layers_size=config.FPN_CLASSIF_FC_LAYERS_SIZE)
+            mrcnn_class_logits, mrcnn_class, mrcnn_bbox = fpn_classifier_graph(
+                rois, mrcnn_feature_maps, input_image_meta,
+                config.POOL_SIZE, config.NUM_CLASSES,
+                train_bn=config.TRAIN_BN,
+                fc_layers_size=config.FPN_CLASSIF_FC_LAYERS_SIZE
+            )
 
-            mrcnn_mask = build_fpn_mask_graph(rois, mrcnn_feature_maps,
-                                              input_image_meta,
-                                              config.MASK_POOL_SIZE,
-                                              config.NUM_CLASSES,
-                                              train_bn=config.TRAIN_BN)
+            mrcnn_mask = build_fpn_mask_graph(
+                rois, mrcnn_feature_maps,
+                input_image_meta,
+                config.MASK_POOL_SIZE,
+                config.NUM_CLASSES,
+                train_bn=config.TRAIN_BN
+            )
 
-            # TODO: clean up (use tf.identify if necessary)
-            output_rois = KL.Lambda(lambda x: x * 1, name="output_rois")(rois)
+            output_rois = KL.Lambda(lambda x: tf.identity(x), name="output_rois")(rois)
 
             # Losses
-            rpn_class_loss = RPNClassLoss(name="rpn_class_loss")([input_rpn_match, rpn_class_logits])
-            rpn_bbox_loss = RPNBboxLoss(config.IMAGES_PER_GPU, name="rpn_bbox_loss")([input_rpn_bbox, input_rpn_match, rpn_bbox])
-            class_loss = MRCNNClassLossGraph(name="mrcnn_class_loss")([target_class_ids, mrcnn_class_logits, active_class_ids])
-            bbox_loss = MRCNNBboxLossGraph(name="mrcnn_bbox_loss")([target_bbox, target_class_ids, mrcnn_bbox])
-            mask_loss = MRCNNMaskLossGraph(name="mrcnn_mask_loss")([target_mask, target_class_ids, mrcnn_mask])
+            rpn_class_loss = RPNClassLoss( # noqa
+                name="rpn_class_loss"
+            )([input_rpn_match, rpn_class_logits])
+            rpn_bbox_loss = RPNBboxLoss(  # noqa
+                config.IMAGES_PER_GPU,
+                name="rpn_bbox_loss"
+            )([input_rpn_bbox, input_rpn_match, rpn_bbox])
+            class_loss = MRCNNClassLossGraph( # noqa
+                name="mrcnn_class_loss"
+            )([target_class_ids, mrcnn_class_logits, active_class_ids])
+            bbox_loss = MRCNNBboxLossGraph( # noqa
+                name="mrcnn_bbox_loss"
+            )([target_bbox, target_class_ids, mrcnn_bbox])
+            mask_loss = MRCNNMaskLossGraph( # noqa
+                name="mrcnn_mask_loss"
+            )([target_mask, target_class_ids, mrcnn_mask])
 
             # Model
-            inputs = [input_image, input_image_meta,
-                      input_rpn_match, input_rpn_bbox, input_gt_class_ids, input_gt_boxes, input_gt_masks]
+            inputs = [
+                input_image, input_image_meta,
+                input_rpn_match, input_rpn_bbox,
+                input_gt_class_ids, input_gt_boxes,
+                input_gt_masks
+            ]
             if not config.USE_RPN_ROIS:
                 inputs.append(input_rois)
-            outputs = [rpn_class_logits, rpn_class, rpn_bbox,
-                       mrcnn_class_logits, mrcnn_class, mrcnn_bbox, mrcnn_mask,
-                       rpn_rois, output_rois,
-                       rpn_class_loss, rpn_bbox_loss, class_loss, bbox_loss, mask_loss]
+            outputs = [
+                rpn_class_logits, rpn_class, rpn_bbox,
+                mrcnn_class_logits, mrcnn_class, mrcnn_bbox, mrcnn_mask,
+                rpn_rois, output_rois,
+                rpn_class_loss, rpn_bbox_loss, class_loss,
+                bbox_loss, mask_loss
+            ]
             model = MaskRCNNModel(inputs, outputs, name='mask_rcnn')
         else:
             # Network Heads
             # Proposal classifier and BBox regressor heads
-            mrcnn_class_logits, mrcnn_class, mrcnn_bbox =\
-                fpn_classifier_graph(rpn_rois, mrcnn_feature_maps, input_image_meta,
-                                     config.POOL_SIZE, config.NUM_CLASSES,
-                                     train_bn=config.TRAIN_BN,
-                                     fc_layers_size=config.FPN_CLASSIF_FC_LAYERS_SIZE)
+            mrcnn_class_logits, mrcnn_class, mrcnn_bbox = fpn_classifier_graph(
+                rpn_rois, mrcnn_feature_maps, input_image_meta,
+                config.POOL_SIZE, config.NUM_CLASSES,
+                train_bn=config.TRAIN_BN,
+                fc_layers_size=config.FPN_CLASSIF_FC_LAYERS_SIZE
+            )
 
             # Detections
             # output is [batch, num_detections, (y1, x1, y2, x2, class_id, score)] in
             # normalized coordinates
-            detections = DetectionLayer(config, name="mrcnn_detection")(
-                [rpn_rois, mrcnn_class, mrcnn_bbox, input_image_meta])
+            detections = DetectionLayer( # noqa
+                config.BBOX_STD_DEV,
+                config.DETECTION_MIN_CONFIDENCE,
+                config.DETECTION_MAX_INSTANCES,
+                config.DETECTION_NMS_THRESHOLD,
+                config.IMAGES_PER_GPU,
+                name="mrcnn_detection"
+            )([rpn_rois, mrcnn_class, mrcnn_bbox, input_image_meta])
 
             # Create masks for detections
             detection_boxes = KL.Lambda(lambda x: x[..., :4])(detections)
