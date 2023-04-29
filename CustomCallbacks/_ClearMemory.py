@@ -9,7 +9,7 @@ class ClearMemory(Callback):
 
     @staticmethod
     def on_epoch_end(epoch, logs=None):
-        print("Cleaning memory for next epoch")
+        print(f"Cleaning memory for next epoch {epoch}")
         gc.collect()
         K.clear_session()
         print("Cleaned!")

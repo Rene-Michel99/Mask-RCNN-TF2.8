@@ -57,6 +57,7 @@ class MaskRCNN:
         self.model_dir = model_dir
         self.set_log_dir()
         self.epoch = 0
+        self._anchor_cache = {}
         self.keras_model = self.build(mode=mode, config=config)
 
     @staticmethod
@@ -69,11 +70,15 @@ class MaskRCNN:
         # Returns a list of the last layers of each stage, 5 in total.
         # Don't create the thread (stage 5), so we pick the 4th item in the list.
         if callable(config.BACKBONE):
-            _, C2, C3, C4, C5 = config.BACKBONE(input_image, stage5=True,
-                                                train_bn=config.TRAIN_BN)
+            _, C2, C3, C4, C5 = config.BACKBONE(
+                input_image, stage5=True,
+                train_bn=config.TRAIN_BN
+            )
         else:
-            _, C2, C3, C4, C5 = resnet_graph(input_image, config.BACKBONE,
-                                             stage5=True, train_bn=config.TRAIN_BN)
+            _, C2, C3, C4, C5 = resnet_graph(
+                input_image, config.BACKBONE,
+                stage5=True, train_bn=config.TRAIN_BN
+            )
         # Top-down Layers
         P5 = KL.Conv2D(config.TOP_DOWN_PYRAMID_SIZE, (1, 1), name='fpn_c5p5')(C5)
         assert P5.shape[3] == config.TOP_DOWN_PYRAMID_SIZE, "Incorrect feature map size"
@@ -152,18 +157,22 @@ class MaskRCNN:
     ):
         # RPN GT
         input_rpn_match = KL.Input(
-            shape=[None, 1], name="input_rpn_match", dtype=tf.int32)
+            shape=[None, 1], name="input_rpn_match", dtype=tf.int32
+        )
         input_rpn_bbox = KL.Input(
-            shape=[None, 4], name="input_rpn_bbox", dtype=tf.float32)
+            shape=[None, 4], name="input_rpn_bbox", dtype=tf.float32
+        )
 
         # Detection GT (class IDs, bounding boxes, and masks)
         # 1. GT Class IDs (zero padded)
         input_gt_class_ids = KL.Input(
-            shape=[None], name="input_gt_class_ids", dtype=tf.int32)
+            shape=[None], name="input_gt_class_ids", dtype=tf.int32
+        )
         # 2. GT Boxes in pixels (zero padded)
         # [batch, MAX_GT_INSTANCES, (y1, x1, y2, x2)] in image coordinates
         input_gt_boxes = KL.Input(
-            shape=[None, 4], name="input_gt_boxes", dtype=tf.float32)
+            shape=[None, 4], name="input_gt_boxes", dtype=tf.float32
+        )
         # Normalize coordinates
         gt_boxes = NormBoxesGraph()([input_gt_boxes, input_image])  # noqa
         # 3. GT Masks (zero padded)
@@ -172,22 +181,21 @@ class MaskRCNN:
             input_gt_masks = KL.Input(
                 shape=[config.MINI_MASK_SHAPE[0],
                        config.MINI_MASK_SHAPE[1], None],
-                name="input_gt_masks", dtype=bool)
+                name="input_gt_masks", dtype=bool
+            )
         else:
             input_gt_masks = KL.Input(
                 shape=[config.IMAGE_SHAPE[0], config.IMAGE_SHAPE[1], None],
-                name="input_gt_masks", dtype=bool)
+                name="input_gt_masks", dtype=bool
+            )
 
         # Note that P6 is used in RPN, but not in the classifier heads.
         rpn_feature_maps, mrcnn_feature_maps = self._build_shared_convolutional_layers(
             config, input_image
         )
 
-        anchors = self.get_anchors(config.IMAGE_SHAPE)
-        # Duplicate across the batch dimension because Keras requires it
-        # A hack to get around Keras's bad support for constants
         anchors = GetAnchors(  # noqa
-            np.broadcast_to(anchors, (config.BATCH_SIZE,) + anchors.shape),
+            self.get_anchors(config.IMAGE_SHAPE, self.config.BATCH_SIZE),
             name="anchors"
         )(input_image)
 
@@ -909,10 +917,7 @@ class MaskRCNN:
                 "After resizing, all images must have the same size. Check IMAGE_RESIZE_MODE and image sizes."
 
         # Anchors
-        anchors = self.get_anchors(image_shape)
-        # Duplicate across the batch dimension because Keras requires it
-        # TODO: can this be optimized to avoid duplicating the anchors?
-        anchors = np.broadcast_to(anchors, (self.config.BATCH_SIZE,) + anchors.shape)
+        anchors = self.get_anchors(image_shape, self.config.BATCH_SIZE)
         # np.save("image_metas.npy", image_metas)
         # np.save("anchors.npy", anchors)
         # np.save("molded_images.npy", molded_images)
@@ -987,10 +992,7 @@ class MaskRCNN:
             assert g.shape == image_shape, "Images must have the same size"
 
         # Anchors
-        anchors = self.get_anchors(image_shape)
-        # Duplicate across the batch dimension because Keras requires it
-        # TODO: can this be optimized to avoid duplicating the anchors?
-        anchors = np.broadcast_to(anchors, (self.config.BATCH_SIZE,) + anchors.shape)
+        anchors = self.get_anchors(image_shape, self.config.BATCH_SIZE)
 
         if verbose:
             utils.log("molded_images", molded_images)
@@ -1003,12 +1005,10 @@ class MaskRCNN:
             image_metas, anchors
         )
 
-    def get_anchors(self, image_shape):
+    def get_anchors(self, image_shape, batch_size):
         """Returns anchor pyramid for the given image size."""
         backbone_shapes = utils.compute_backbone_shapes(self.config, image_shape)
         # Cache anchors and reuse if image shape is the same
-        if not hasattr(self, "_anchor_cache"):
-            self._anchor_cache = {}
         if not tuple(image_shape) in self._anchor_cache:
             # Generate Anchors
             a = utils.generate_pyramid_anchors(
@@ -1016,9 +1016,13 @@ class MaskRCNN:
                 self.config.RPN_ANCHOR_RATIOS,
                 backbone_shapes,
                 self.config.BACKBONE_STRIDES,
-                self.config.RPN_ANCHOR_STRIDE)
+                self.config.RPN_ANCHOR_STRIDE
+            )
             # Normalize coordinates
-            self._anchor_cache[tuple(image_shape)] = utils.norm_boxes(a, image_shape[:2])
+            self._anchor_cache[tuple(image_shape)] = np.broadcast_to(
+                utils.norm_boxes(a, image_shape[:2]),
+                (batch_size,) + a.shape
+            )
         return self._anchor_cache[tuple(image_shape)]
 
     def ancestor(self, tensor, name, checked=None):

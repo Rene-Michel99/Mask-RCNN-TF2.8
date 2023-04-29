@@ -162,10 +162,9 @@ def resnet_graph(input_image, architecture, stage5=False, train_bn=True):
     """
     assert architecture in ["resnet50", "resnet101"]
     # Stage 1
-    # TODO: Existe diferença de acuracia entre usar a CustomLayer BatchNorm e BatchNormalization?
     x = KL.ZeroPadding2D((3, 3))(input_image)
     x = KL.Conv2D(64, (7, 7), strides=(2, 2), name='conv1', use_bias=True)(x)
-    x = BatchNorm(name='bn_conv1', trainable=train_bn)(x, training=train_bn)
+    x = BatchNorm(name='bn_conv1', trainable=train_bn)(x, training=train_bn) # noqa
     x = KL.Activation('relu')(x)
     C1 = x = KL.MaxPooling2D((3, 3), strides=(2, 2), padding="same")(x)
     # Stage 2
