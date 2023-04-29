@@ -869,6 +869,7 @@ def compute_recall(pred_boxes, gt_boxes, iou):
 # an easy way to support batches > 1 quickly with little code modification.
 # In the long run, it's more efficient to modify the code to support large
 # batches and getting rid of this function. Consider this a temporary solution
+@tf.function
 def batch_slice(inputs, graph_fn, batch_size, names=None):
     """Splits inputs into slices and feeds each slice to a copy of the given
     computation graph and then combines the results. It allows you to run a
@@ -911,15 +912,14 @@ def download_trained_weights(coco_model_path=None, verbose=1):
 
     coco_model_path: local path of COCO trained weights
     """
-    if not os.path.exists('./logs') and not coco_model_path:
-        os.system("mkdir %s" % './logs')
+    if not coco_model_path:
+        coco_model_path = DEFAULT_COCO_WEIGHTS_PATH
+        if not os.path.exists('./logs'):
+            os.system("mkdir %s" % './logs')
 
-    if os.path.exists(DEFAULT_COCO_WEIGHTS_PATH):
+    if os.path.exists(coco_model_path):
         print("Using downloaded weights at %s" % DEFAULT_COCO_WEIGHTS_PATH)
         return
-    elif coco_model_path and not os.path.exists(coco_model_path):
-        raise ValueError("Could not find coco weights path at %s" % coco_model_path)
-    coco_model_path = coco_model_path if coco_model_path else DEFAULT_COCO_WEIGHTS_PATH
 
     if verbose > 0:
         print("Downloading pretrained model to " + coco_model_path + " ...")

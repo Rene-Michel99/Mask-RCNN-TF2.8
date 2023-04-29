@@ -12,9 +12,16 @@ class DetectionLayer(tf.keras.layers.Layer):
     coordinates are normalized.
     """
 
-    def __init__(self, config=None, **kwargs):
+    def __init__(self, images_per_gpu, batch_size, detection_max_instances, **kwargs):
         super(DetectionLayer, self).__init__(**kwargs)
-        self.config = config
+        self.images_per_gpu = images_per_gpu
+        self.batch_size = batch_size
+        self.detection_max_instances = detection_max_instances
+
+        self.refine_detections_graph = refine_detections_graph
+        self.norm_boxes_graph = norm_boxes_graph
+        self.batch_slice = batch_slice
+        self.parse_image_meta_graph = parse_image_meta_graph
 
     @tf.function
     def call(self, inputs):
@@ -27,22 +34,22 @@ class DetectionLayer(tf.keras.layers.Layer):
         # in the image that excludes the padding.
         # Use the shape of the first image in the batch to normalize the window
         # because we know that all images get resized to the same size.
-        m = parse_image_meta_graph(image_meta)
+        m = self.parse_image_meta_graph(image_meta)
         image_shape = m['image_shape'][0]
-        window = norm_boxes_graph(m['window'], image_shape[:2])
+        window = self.norm_boxes_graph(m['window'], image_shape[:2])
 
         # Run detection refinement graph on each item in the batch
-        detections_batch = batch_slice(
+        detections_batch = self.batch_slice(
             [rois, mrcnn_class, mrcnn_bbox, window],
-            lambda x, y, w, z: refine_detections_graph(x, y, w, z, self.config),
-            self.config.IMAGES_PER_GPU)
+            lambda x, y, w, z: self.refine_detections_graph(x, y, w, z, ),
+            self.images_per_gpu)
 
         # Reshape output
         # [batch, num_detections, (y1, x1, y2, x2, class_id, class_score)] in
         # normalized coordinates
         return tf.reshape(
             detections_batch,
-            [self.config.BATCH_SIZE, self.config.DETECTION_MAX_INSTANCES, 6])
+            [self.batch_size, self.detection_max_instances, 6])
 
     def compute_output_shape(self, input_shape):
-        return (None, self.config.DETECTION_MAX_INSTANCES, 6)
+        return (None, self.detection_max_instances, 6)

@@ -28,9 +28,25 @@ class DetectionTargetLayer(tf.keras.layers.Layer):
     Note: Returned arrays might be zero padded if not enough target ROIs.
     """
 
-    def __init__(self, config, **kwargs):
+    def __init__(
+            self,
+            images_per_gpu,
+            train_rois_per_image,
+            mask_shape,
+            roi_positive_ratio,
+            bbox_std_dev,
+            use_mini_mask,
+            **kwargs):
         super(DetectionTargetLayer, self).__init__(**kwargs)
-        self.config = config
+        self.images_per_gpu = images_per_gpu
+        self.train_rois_per_image = train_rois_per_image
+        self.mask_shape = mask_shape
+        self.roi_positive_ratio = roi_positive_ratio
+        self.bbox_std_dev = bbox_std_dev
+        self.use_mini_mask = use_mini_mask
+
+        self.detection_targets_graph = detection_targets_graph
+        self.batch_slice = batch_slice
 
     @tf.function
     def call(self, inputs):
@@ -41,20 +57,26 @@ class DetectionTargetLayer(tf.keras.layers.Layer):
 
         # Slice the batch and run a graph for each slice
         names = ["rois", "target_class_ids", "target_bbox", "target_mask"]
-        outputs = batch_slice(
+        outputs = self.batch_slice(
             [proposals, gt_class_ids, gt_boxes, gt_masks],
-            lambda w, x, y, z: detection_targets_graph(
-                w, x, y, z, self.config),
-            self.config.IMAGES_PER_GPU, names=names)
+            lambda w, x, y, z: self.detection_targets_graph(
+                w, x, y, z,
+                train_rois_per_image=self.train_rois_per_image,
+                roi_positive_ratio=self.roi_positive_ratio,
+                bbox_std_dev=self.bbox_std_dev,
+                use_mini_mask=self.use_mini_mask,
+                mask_shape=self.mask_shape
+            ), self.images_per_gpu, names=names
+        )
         return outputs
 
     def compute_output_shape(self, input_shape):
         return [
-            (None, self.config.TRAIN_ROIS_PER_IMAGE, 4),  # rois
-            (None, self.config.TRAIN_ROIS_PER_IMAGE),  # class_ids
-            (None, self.config.TRAIN_ROIS_PER_IMAGE, 4),  # deltas
-            (None, self.config.TRAIN_ROIS_PER_IMAGE, self.config.MASK_SHAPE[0],
-             self.config.MASK_SHAPE[1])  # masks
+            (None, self.train_rois_per_image, 4),  # rois
+            (None, self.train_rois_per_image),  # class_ids
+            (None, self.train_rois_per_image, 4),  # deltas
+            (None, self.train_rois_per_image, self.mask_shape[0],
+             self.mask_shape[1])  # masks
         ]
 
     @staticmethod

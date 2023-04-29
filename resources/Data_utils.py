@@ -83,6 +83,7 @@ def trim_zeros_graph(boxes, name='trim_zeros'):
     return boxes, non_zeros
 
 
+@tf.function
 def batch_pack_graph(x, counts, num_rows):
     """Picks different number of values from each row
     in x depending on the values in counts.
@@ -90,9 +91,10 @@ def batch_pack_graph(x, counts, num_rows):
     outputs = []
     for i in range(num_rows):
         outputs.append(x[i, :counts[i]])
-    return tf.concat(outputs, axis=0)
+    return tf.concat(outputs, axis=0, name="batch_pack_graph")
 
 
+@tf.function
 def denorm_boxes_graph(boxes, shape):
     """Converts boxes from normalized coordinates to pixel coordinates.
     boxes: [..., (y1, x1, y2, x2)] in normalized coordinates
@@ -105,7 +107,7 @@ def denorm_boxes_graph(boxes, shape):
         [..., (y1, x1, y2, x2)] in pixel coordinates
     """
     h, w = tf.split(tf.cast(shape, tf.float32), 2)
-    scale = tf.concat([h, w, h, w], axis=-1) - tf.constant(1.0)
+    scale = tf.concat([h, w, h, w], axis=-1, name="scale_denorm_boxes_graph") - tf.constant(1.0)
     shift = tf.constant([0., 0., 1., 1.])
     return tf.cast(tf.round(tf.multiply(boxes, scale, name="denorm_boxes_graph") + shift), tf.int32)
 

@@ -1,7 +1,7 @@
 import os
 import random
 
-from Custom_layers import *
+from CustomLayers import *
 from resources import utils, visualize
 from Configs.ShapesConfig import ShapesDataset, ShapesConfig
 from resources.Data_utils import load_image_gt

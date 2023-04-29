@@ -13,30 +13,26 @@ class RPNClassLoss(tf.keras.layers.Layer):
                        -1=negative, 0=neutral anchor.
             rpn_class_logits: [batch, anchors, 2]. RPN classifier logits for BG/FG.
             """
-        rpn_match = inputs[0]
-        rpn_class_logits = inputs[1]
-
         # Squeeze last dim to simplify
-        rpn_match = tf.squeeze(rpn_match, -1)
+        rpn_match = tf.squeeze(inputs[0], -1)
+
         # Get anchor classes. Convert the -1/+1 match to 0/1 values.
         anchor_class = tf.cast(tf.equal(rpn_match, 1), tf.int32)
         # Positive and Negative anchors contribute to the loss,
         # but neutral anchors (match value = 0) don't.
         indices = tf.where(tf.not_equal(rpn_match, 0))
         # Pick rows that contribute to the loss and filter out the rest.
-        rpn_class_logits = tf.gather_nd(rpn_class_logits, indices)
+        rpn_class_logits = tf.gather_nd(inputs[1], indices)
         anchor_class = tf.gather_nd(anchor_class, indices)
         # Cross entropy loss
-        loss = K.sparse_categorical_crossentropy(target=anchor_class,
-                                                 output=rpn_class_logits,
-                                                 from_logits=True)
         metric = tf.keras.metrics.sparse_categorical_crossentropy(
             anchor_class,
             rpn_class_logits,
             from_logits=True
         )
         self.add_metric(metric, name="rpn_class_loss")
-
-        #loss = K.switch(tf.size(loss) > 0, K.mean(loss), tf.constant(0.0))
-        #self.add_loss(tf.reduce_mean(loss, keepdims=True) * 1.)
-        return K.mean(loss)
+        return K.mean(K.sparse_categorical_crossentropy(
+            target=anchor_class,
+            output=rpn_class_logits,
+            from_logits=True
+        ))

@@ -17,10 +17,11 @@ class MRCNNMaskLossGraph(tf.keras.layers.Layer):
                         with values from 0 to 1.
             """
         target_masks = inputs[0]
-        target_class_ids = inputs[1]
-        pred_masks = inputs[2]
         # Reshape for simplicity. Merge first two dimensions into one.
-        target_class_ids = tf.reshape(target_class_ids, (-1,))
+        target_class_ids = tf.reshape(inputs[1], (-1,))
+        pred_masks = inputs[2]
+        del inputs
+
         mask_shape = tf.shape(target_masks)
         target_masks = tf.reshape(target_masks, (-1, mask_shape[2], mask_shape[3]))
         pred_shape = tf.shape(pred_masks)
@@ -40,16 +41,12 @@ class MRCNNMaskLossGraph(tf.keras.layers.Layer):
         y_true = tf.gather(target_masks, positive_ix)
         y_pred = tf.gather_nd(pred_masks, indices)
 
-        # Compute binary cross entropy. If no positive ROIs, then return 0.
-        # shape: [batch, roi, num_classes]
-        metric = K.binary_crossentropy(
+        metric = tf.keras.metrics.binary_crossentropy(
             y_true,
-            y_pred,
+            y_pred
         )
         self.add_metric(metric, name="mrcnn_mask_loss")
 
-        '''loss = K.switch(tf.size(y_true) > 0,
-                        K.binary_crossentropy(target=y_true, output=y_pred),
-                        tf.constant(0.0))
-        loss = K.mean(K.binary_crossentropy(target=y_true, output=y_pred))'''
+        # Compute binary cross entropy. If no positive ROIs, then return 0.
+        # shape: [batch, roi, num_classes]
         return K.mean(K.binary_crossentropy(target=y_true, output=y_pred))

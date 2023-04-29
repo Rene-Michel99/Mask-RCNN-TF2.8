@@ -7,14 +7,13 @@ import multiprocessing
 import tensorflow.keras as keras
 import tensorflow.keras.backend as K
 import tensorflow.keras.layers as KL
-import tensorflow.keras.models as KM
 
 from resources import utils
-from Custom_layers import norm_boxes_graph
+from CustomLayers import norm_boxes_graph
 from resources.resnet_utils import resnet_graph
 from resources.Data_utils import *
 from resources.RPN_utils import *
-from Custom_layers import (
+from CustomLayers import (
     ProposalLayer,
     DetectionLayer,
     DetectionTargetLayer,
@@ -26,6 +25,8 @@ from Custom_layers import (
     MRCNNBboxLossGraph,
     MRCNNMaskLossGraph
 )
+from CustomKerasModel import MaskRCNNModel
+from CustomCallbacks import ClearMemory
 
 # Requires TensorFlow 2.8+
 from distutils.version import LooseVersion
@@ -121,8 +122,8 @@ class MaskRCNN:
             _, C2, C3, C4, C5 = resnet_graph(input_image, config.BACKBONE,
                                              stage5=True, train_bn=config.TRAIN_BN)
         # Top-down Layers
-        # TODO: add assert to varify feature map sizes match what's in config
         P5 = KL.Conv2D(config.TOP_DOWN_PYRAMID_SIZE, (1, 1), name='fpn_c5p5')(C5)
+        assert P5.shape[3] == config.TOP_DOWN_PYRAMID_SIZE, "Incorrect feature map size"
         P4 = KL.Add(name="fpn_p4add")([
             KL.UpSampling2D(size=(2, 2), name="fpn_p5upsampled")(P5),
             KL.Conv2D(config.TOP_DOWN_PYRAMID_SIZE, (1, 1), name='fpn_c4p4')(C4)])
@@ -206,9 +207,15 @@ class MaskRCNN:
             # Subsamples proposals and generates target outputs for training
             # Note that proposal class IDs, gt_boxes, and gt_masks are zero
             # padded. Equally, returned rois and targets are zero padded.
-            rois, target_class_ids, target_bbox, target_mask =\
-                DetectionTargetLayer(config, name="proposal_targets")([
-                    target_rois, input_gt_class_ids, gt_boxes, input_gt_masks])
+            # TODO: Remove configs from layers and pass only parameters
+            rois, target_class_ids, target_bbox, target_mask = DetectionTargetLayer( # noqa
+                images_per_gpu=config.IMAGES_PER_GPU,
+                train_rois_per_image=config.TRAIN_ROIS_PER_IMAGE,
+                mask_shape=config.MASK_SHAPE,
+                roi_positive_ratio=config.ROI_POSITIVE_RATIO,
+                bbox_std_dev=config.BBOX_STD_DEV,
+                use_mini_mask=config.USE_MINI_MASK,
+                name="proposal_targets")([target_rois, input_gt_class_ids, gt_boxes, input_gt_masks])
             # Network Heads
             # TODO: verify that this handles zero padded ROIs
             mrcnn_class_logits, mrcnn_class, mrcnn_bbox =\
@@ -227,17 +234,6 @@ class MaskRCNN:
             output_rois = KL.Lambda(lambda x: x * 1, name="output_rois")(rois)
 
             # Losses
-            '''rpn_class_loss = KL.Lambda(lambda x: rpn_class_loss_graph(*x), name="rpn_class_loss")(
-                [input_rpn_match, rpn_class_logits])
-             rpn_bbox_loss = KL.Lambda(lambda x: rpn_bbox_loss_graph(config, *x), name="rpn_bbox_loss")(
-               [input_rpn_bbox, input_rpn_match, rpn_bbox])
-            class_loss = KL.Lambda(lambda x: mrcnn_class_loss_graph(*x), name="mrcnn_class_loss")(
-                [target_class_ids, mrcnn_class_logits, active_class_ids])
-            bbox_loss = KL.Lambda(lambda x: mrcnn_bbox_loss_graph(*x), name="mrcnn_bbox_loss")(
-                [target_bbox, target_class_ids, mrcnn_bbox])
-            mask_loss = KL.Lambda(lambda x: mrcnn_mask_loss_graph(*x), name="mrcnn_mask_loss")(
-                [target_mask, target_class_ids, mrcnn_mask])
-                '''
             rpn_class_loss = RPNClassLoss(name="rpn_class_loss")([input_rpn_match, rpn_class_logits])
             rpn_bbox_loss = RPNBboxLoss(config.IMAGES_PER_GPU, name="rpn_bbox_loss")([input_rpn_bbox, input_rpn_match, rpn_bbox])
             class_loss = MRCNNClassLossGraph(name="mrcnn_class_loss")([target_class_ids, mrcnn_class_logits, active_class_ids])
@@ -253,7 +249,7 @@ class MaskRCNN:
                        mrcnn_class_logits, mrcnn_class, mrcnn_bbox, mrcnn_mask,
                        rpn_rois, output_rois,
                        rpn_class_loss, rpn_bbox_loss, class_loss, bbox_loss, mask_loss]
-            model = KM.Model(inputs, outputs, name='mask_rcnn')
+            model = MaskRCNNModel(inputs, outputs, name='mask_rcnn')
         else:
             # Network Heads
             # Proposal classifier and BBox regressor heads
@@ -277,12 +273,12 @@ class MaskRCNN:
                     input_image_meta, config.MASK_POOL_SIZE,
                     config.NUM_CLASSES, train_bn=config.TRAIN_BN
                 )
-                model = KM.Model(
+                model = MaskRCNNModel(
                         [input_image, input_image_meta, input_anchors],
                         [detections, mrcnn_class, mrcnn_bbox,
                          mrcnn_mask, rpn_rois, rpn_class, rpn_bbox], name='mask_rcnn')
             else:
-                model = KM.Model(
+                model = MaskRCNNModel(
                     [input_image, input_image_meta, input_anchors],
                     [detections, rpn_rois, rpn_class, rpn_bbox], name='mask_rcnn')
 
@@ -350,39 +346,66 @@ class MaskRCNN:
                                 TF_WEIGHTS_PATH_NO_TOP,
                                 cache_subdir='models',
                                 md5_hash='a268eb855778b3df3c7506639542a6af')
-        return weights_path
+        return
 
-    def compile(self, learning_rate, momentum):
+    def _get_optimizer(self, learning_rate, momentum):
+        optimizer = self.config.OPTIMIZER
+        if optimizer == 'SGD':
+            return keras.optimizers.SGD(
+                learning_rate=learning_rate,
+                momentum=momentum,
+                clipnorm=self.config.GRADIENT_CLIP_NORM,
+            )
+        elif optimizer == 'ADAM':
+            return keras.optimizers.Adam(
+                learning_rate=learning_rate,
+                clipnorm=self.config.GRADIENT_CLIP_NORM,
+            )
+        elif optimizer == 'RMSPROP':
+            return keras.optimizers.RMSprop(
+                learning_rate=learning_rate,
+                momentum=momentum,
+                clipnorm=self.config.GRADIENT_CLIP_NORM,
+            )
+
+    def compile(self, learning_rate, momentum, limit_device=False):
         """Gets the model ready for training. Adds losses, regularization, and
         metrics. Then calls the Keras compile() function.
         """
-        #self.keras_model.metrics_tensors = []
+
+        if limit_device:
+            gpus = tf.config.experimental.list_physical_devices('GPU')
+            try:
+                tf.config.experimental.set_virtual_device_configuration(
+                    gpus[0],
+                    [tf.config.experimental.VirtualDeviceConfiguration(memory_limit=1024)]
+                )
+            except Exception as e:
+                raise e
+
         # Optimizer object
-        optimizer = keras.optimizers.SGD(
-            learning_rate=learning_rate, momentum=momentum,
-            clipnorm=self.config.GRADIENT_CLIP_NORM)
+        optimizer = self._get_optimizer(learning_rate, momentum)
+
         # Add Losses
-        # First, clear previously set losses to avoid duplication
-        #self.keras_model._losses = []
-        #self.keras_model._per_input_losses = {}
         loss_names = [
-            "rpn_class_loss",  "rpn_bbox_loss",
+            "rpn_class_loss", "rpn_bbox_loss",
             "mrcnn_class_loss", "mrcnn_bbox_loss", "mrcnn_mask_loss"
         ]
         for name in loss_names:
             layer = self.keras_model.get_layer(name)
             self.keras_model.add_loss(
-                tf.reduce_mean(layer.output, keepdims=True) * self.config.LOSS_WEIGHTS.get(name, 1.)
+                (tf.reduce_mean(layer.output, keepdims=True) * self.config.LOSS_WEIGHTS.get(name, 1.))
             )
 
         # Add L2 Regularization
         # Skip gamma and beta weights of batch normalization layers.
-        self.keras_model.add_loss(
+        '''self.keras_model.add_loss(
             lambda: tf.add_n([
                 keras.regularizers.l2(self.config.WEIGHT_DECAY)(w) / tf.cast(tf.size(input=w), tf.float32)
                 for w in self.keras_model.trainable_weights
-                if 'gamma' not in w.name and 'beta' not in w.name])
-        )
+                if 'gamma' not in w.name and 'beta' not in w.name]
+            )
+        )'''
 
         # Compile
         self.keras_model.compile(
@@ -552,6 +575,7 @@ class MaskRCNN:
                                         histogram_freq=0, write_graph=True, write_images=False),
             keras.callbacks.ModelCheckpoint(self.checkpoint_path,
                                             verbose=0, save_weights_only=True),
+            ClearMemory(),
         ]
 
         # Add custom callbacks to the list
@@ -584,7 +608,8 @@ class MaskRCNN:
             max_queue_size=100,
             workers=workers,
             use_multiprocessing=True,
-            verbose=1
+            verbose=1,
+            batch_size=self.config.BATCH_SIZE,
         )
         self.epoch = max(self.epoch, epochs)
         return history
@@ -897,10 +922,6 @@ class MaskRCNN:
                 backbone_shapes,
                 self.config.BACKBONE_STRIDES,
                 self.config.RPN_ANCHOR_STRIDE)
-            # Keep a copy of the latest anchors in pixel coordinates because
-            # it's used in inspect_model notebooks.
-            # TODO: Remove this after the notebook are refactored to not use it
-            self.anchors = a
             # Normalize coordinates
             self._anchor_cache[tuple(image_shape)] = utils.norm_boxes(a, image_shape[:2])
         return self._anchor_cache[tuple(image_shape)]

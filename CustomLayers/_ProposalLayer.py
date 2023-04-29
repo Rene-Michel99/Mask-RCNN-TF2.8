@@ -31,10 +31,10 @@ class ProposalLayer(tf.keras.layers.Layer):
         # Box Scores. Use the foreground class confidence. [Batch, num_rois, 1]
         scores = inputs[0][:, :, 1]
         # Box deltas [batch, num_rois, 4]
-        deltas = inputs[1]
-        deltas = deltas * np.reshape(self.config.RPN_BBOX_STD_DEV, [1, 1, 4])
+        deltas = inputs[1] * np.reshape(self.config.RPN_BBOX_STD_DEV, [1, 1, 4])
         # Anchors
         anchors = inputs[2]
+        del inputs
 
         # Improve performance by trimming to top anchors by score
         # and doing the rest on the smaller subset.

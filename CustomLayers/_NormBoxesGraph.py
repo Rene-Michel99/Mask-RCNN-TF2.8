@@ -19,7 +19,8 @@ class NormBoxesGraph(tf.keras.layers.Layer):
         """
         boxes = inputs[0]
         shape = tf.shape(inputs[1])[1:3]
+        del inputs
         h, w = tf.split(tf.cast(shape, tf.float32), 2)
-        scale = tf.concat([h, w, h, w], axis=-1) - tf.constant(1.0)
+        scale = tf.concat([h, w, h, w], axis=-1, name="concat_scale_NormBoxesGraph") - tf.constant(1.0)
         shift = tf.constant([0., 0., 1., 1.])
         return tf.divide(boxes - shift, scale)

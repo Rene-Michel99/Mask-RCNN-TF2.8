@@ -1,7 +1,7 @@
 import tensorflow as tf
 import tensorflow.keras.layers as KL
 import tensorflow.keras.models as KM
-from Custom_layers import BatchNorm
+from CustomLayers import BatchNorm
 
 
 # Code adopted from:

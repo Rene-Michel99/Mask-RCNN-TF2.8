@@ -105,7 +105,7 @@ def refine_detections_graph(rois, probs, deltas, window, config):
         tf.gather(refined_rois, keep),
         tf.cast(tf.gather(class_ids, keep), np.float32)[..., tf.newaxis],
         tf.gather(class_scores, keep)[..., tf.newaxis]
-        ], axis=1)
+        ], axis=1, name="concat_detections_refine_detections_graph")
 
     # Pad with zeros if detections < DETECTION_MAX_INSTANCES
     gap = config.DETECTION_MAX_INSTANCES - tf.shape(detections)[0]
@@ -126,7 +126,7 @@ def norm_boxes_graph(boxes, shape):
         [..., (y1, x1, y2, x2)] in normalized coordinates
     """
     h, w = tf.split(tf.cast(shape, tf.float32), 2)
-    scale = tf.concat([h, w, h, w], axis=-1) - tf.constant(1.0)
+    scale = tf.concat([h, w, h, w], axis=-1) - tf.constant(1.0, name="concat_scale_norm_boxes_graph")
     shift = tf.constant([0., 0., 1., 1.])
     return tf.divide(boxes - shift, scale, name="divided_norm_boxes_graph")
 
@@ -247,7 +247,17 @@ def smooth_l1_loss(y_true, y_pred, name):
 
 
 @tf.function
-def detection_targets_graph(proposals, gt_class_ids, gt_boxes, gt_masks, config):
+def detection_targets_graph(
+        proposals,
+        gt_class_ids,
+        gt_boxes,
+        gt_masks,
+        train_rois_per_image,
+        roi_positive_ratio,
+        bbox_std_dev,
+        use_mini_mask,
+        mask_shape
+):
     """Generates detection targets for one image. Subsamples proposals and
     generates target class IDs, bounding box deltas, and masks for each.
 
@@ -312,12 +322,11 @@ def detection_targets_graph(proposals, gt_class_ids, gt_boxes, gt_masks, config)
 
     # Subsample ROIs. Aim for 33% positive
     # Positive ROIs
-    positive_count = int(config.TRAIN_ROIS_PER_IMAGE *
-                         config.ROI_POSITIVE_RATIO)
+    positive_count = int(train_rois_per_image * roi_positive_ratio)
     positive_indices = tf.random.shuffle(positive_indices)[:positive_count]
     positive_count = tf.shape(positive_indices)[0]
     # Negative ROIs. Add enough to maintain positive:negative ratio.
-    r = 1.0 / config.ROI_POSITIVE_RATIO
+    r = 1.0 / roi_positive_ratio
     negative_count = tf.cast(r * tf.cast(positive_count, tf.float32), tf.int32) - positive_count
     negative_indices = tf.random.shuffle(negative_indices)[:negative_count]
     # Gather selected ROIs
@@ -336,7 +345,7 @@ def detection_targets_graph(proposals, gt_class_ids, gt_boxes, gt_masks, config)
 
     # Compute bbox refinement for positive ROIs
     deltas = box_refinement_graph(positive_rois, roi_gt_boxes)
-    deltas /= config.BBOX_STD_DEV
+    deltas /= tf.cast(bbox_std_dev, tf.float32)
 
     # Assign positive ROIs to GT masks
     # Permute masks to [N, height, width, 1]
@@ -346,7 +355,7 @@ def detection_targets_graph(proposals, gt_class_ids, gt_boxes, gt_masks, config)
 
     # Compute mask targets
     boxes = positive_rois
-    if config.USE_MINI_MASK:
+    if use_mini_mask:
         # Transform ROI coordinates from normalized image space
         # to normalized mini-mask space.
         y1, x1, y2, x2 = tf.split(positive_rois, 4, axis=1)
@@ -361,7 +370,7 @@ def detection_targets_graph(proposals, gt_class_ids, gt_boxes, gt_masks, config)
     box_ids = tf.range(0, tf.shape(roi_masks)[0])
     masks = tf.image.crop_and_resize(
         tf.clip_by_value(tf.cast(roi_masks, tf.float32), 0, 255),
-        boxes, box_ids, config.MASK_SHAPE
+        boxes, box_ids, mask_shape
     )
     # Remove the extra dimension from masks.
     masks = tf.squeeze(masks, axis=3)
@@ -374,9 +383,9 @@ def detection_targets_graph(proposals, gt_class_ids, gt_boxes, gt_masks, config)
     # are not used for negative ROIs with zeros.
     rois = tf.concat([positive_rois, negative_rois], axis=0)
     N = tf.shape(negative_rois)[0]
-    P = tf.maximum(config.TRAIN_ROIS_PER_IMAGE - tf.shape(rois)[0], 0)
+    P = tf.maximum(train_rois_per_image - tf.shape(rois)[0], 0)
     rois = tf.pad(rois, [(0, P), (0, 0)], "CONSTANT", name="padded_rois_detection_targets_graph")
-    roi_gt_boxes = tf.pad(roi_gt_boxes, [(0, N + P), (0, 0)], "CONSTANT")
+    #roi_gt_boxes = tf.pad(roi_gt_boxes, [(0, N + P), (0, 0)], "CONSTANT")
     roi_gt_class_ids = tf.pad(roi_gt_class_ids, [(0, N + P)], "CONSTANT", name="padded_rois_class_ids_detection_targets_graph")
     deltas = tf.pad(deltas, [(0, N + P), (0, 0)], "CONSTANT", name="padded_deltas_detection_targets_graph")
     masks = tf.pad(masks, [[0, N + P], (0, 0), (0, 0)], "CONSTANT", name="padded_masks_detection_targets_graph")

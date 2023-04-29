@@ -34,14 +34,13 @@ class PyramidROIAlign(tf.keras.layers.Layer):
     def call(self, inputs):
         # Crop boxes [batch, num_boxes, (y1, x1, y2, x2)] in normalized coords
         boxes = inputs[0]
-
         # Image meta
         # Holds details about the image. See compose_image_meta()
         image_meta = inputs[1]
-
         # Feature Maps. List of feature maps from different level of the
         # feature pyramid. Each is [batch, height, width, channels]
         feature_maps = inputs[2:]
+        del inputs
 
         # Assign each ROI to a level in the pyramid based on the ROI area.
         y1, x1, y2, x2 = tf.split(boxes, 4, axis=2)
@@ -87,7 +86,6 @@ class PyramidROIAlign(tf.keras.layers.Layer):
             # Here we use the simplified approach of a single value per bin,
             # which is how it's done in tf.crop_and_resize()
             # Result: [batch * num_boxes, pool_height, pool_width, channels]
-            # TODO: Try to supress warning CropAndResize by adding batch size or removing negative values
             pooled.append(
                 tf.image.crop_and_resize(
                     feature_maps[i], level_boxes,
@@ -97,13 +95,13 @@ class PyramidROIAlign(tf.keras.layers.Layer):
             )
 
         # Pack pooled features into one tensor
-        pooled = tf.concat(pooled, axis=0)
+        pooled = tf.concat(pooled, axis=0, name="concat_pooled_PyramidROIAlign")
 
         # Pack box_to_level mapping into one array and add another
         # column representing the order of pooled boxes
-        box_to_level = tf.concat(box_to_level, axis=0)
+        box_to_level = tf.concat(box_to_level, axis=0, name="concat_box_to_level_PyramidROIAlign")
         box_range = tf.expand_dims(tf.range(tf.shape(box_to_level)[0]), 1)
-        box_to_level = tf.concat([tf.cast(box_to_level, tf.int32), box_range], axis=1)
+        box_to_level = tf.concat([tf.cast(box_to_level, tf.int32), box_range], axis=1, name="concat_box_to_level2")
 
         # Rearrange pooled features to match the order of the original boxes
         # Sort box_to_level by batch then box index
@@ -115,11 +113,12 @@ class PyramidROIAlign(tf.keras.layers.Layer):
         pooled = tf.gather_nd([pooled], tf.stack([tf.zeros_like(ix), ix], axis=-1))
 
         # Re-add the batch dimension
-        shape = tf.concat([tf.shape(boxes)[:2], tf.shape(pooled)[1:]], axis=0)
+        shape = tf.concat([tf.shape(boxes)[:2], tf.shape(pooled)[1:]], axis=0, name="concat_shape_PyramidROIAlign")
         pooled = tf.reshape(pooled, shape)
         return pooled
 
     @staticmethod
+    @tf.function
     def log2_graph(x):
         """Implementation of Log2. TF doesn't have a native implementation."""
         return tf.math.log(x) / tf.math.log(2.0)
