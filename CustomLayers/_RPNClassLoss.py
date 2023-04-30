@@ -25,14 +25,17 @@ class RPNClassLoss(tf.keras.layers.Layer):
         rpn_class_logits = tf.gather_nd(inputs[1], indices)
         anchor_class = tf.gather_nd(anchor_class, indices)
         # Cross entropy loss
-        metric = tf.keras.metrics.sparse_categorical_crossentropy(
-            anchor_class,
-            rpn_class_logits,
-            from_logits=True
-        )
-        self.add_metric(metric, name="rpn_class_loss")
-        return K.mean(K.sparse_categorical_crossentropy(
+        loss = K.sparse_categorical_crossentropy(
             target=anchor_class,
             output=rpn_class_logits,
             from_logits=True
-        ))
+        )
+        '''metric = tf.keras.metrics.sparse_categorical_crossentropy(
+            anchor_class,
+            rpn_class_logits,
+            from_logits=True
+        )'''
+        self.add_metric(loss, name="rpn_class_loss")
+
+        loss = K.switch(tf.size(loss) > 0, K.mean(loss), tf.constant(0.0))
+        return loss

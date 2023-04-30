@@ -25,8 +25,9 @@ class MRCNNClassLossGraph(tf.keras.layers.Layer):
         pred_class_ids = tf.argmax(pred_class_logits, axis=2)
         del inputs
         # Find predictions of classes that are not in the dataset.
+        #active_class_ids = tf.reshape(active_class_ids, (pred_class_ids.shape[0], -1))
         pred_active = tf.gather(
-            tf.reshape(active_class_ids, (pred_class_ids.shape[0], -1)),
+            active_class_ids[0],
             pred_class_ids
         )
 
@@ -42,4 +43,5 @@ class MRCNNClassLossGraph(tf.keras.layers.Layer):
         # to the loss to get a correct mean.
         loss = loss * pred_active
         self.add_metric(loss, name="mrcnn_class_loss")
+
         return tf.reduce_sum(loss) / tf.reduce_sum(pred_active)

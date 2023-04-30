@@ -27,6 +27,7 @@ from CustomLayers import (
 )
 from CustomKerasModel import MaskRCNNModel
 from CustomCallbacks import ClearMemory
+from DataGenerator import DataGenerator
 
 # Requires TensorFlow 2.8+
 from distutils.version import LooseVersion
@@ -335,6 +336,7 @@ class MaskRCNN:
             config.DETECTION_MAX_INSTANCES,
             config.DETECTION_NMS_THRESHOLD,
             config.IMAGES_PER_GPU,
+            config.BATCH_SIZE,
             name="mrcnn_detection"
         )([rpn_rois, mrcnn_class, mrcnn_bbox, input_image_meta])
 
@@ -374,6 +376,7 @@ class MaskRCNN:
         # Inputs
         input_image = KL.Input(
             shape=[None, None, config.IMAGE_SHAPE[2]], name="input_image")
+
         input_image_meta = KL.Input(shape=[config.IMAGE_META_SIZE],
                                     name="input_image_meta")
         if mode == "training":
@@ -462,7 +465,8 @@ class MaskRCNN:
         elif optimizer == 'ADAM':
             return keras.optimizers.Adam(
                 learning_rate=learning_rate,
-                clipnorm=self.config.GRADIENT_CLIP_NORM,
+                clipnorm=1.,
+                epsilon=1e-08,
             )
         elif optimizer == 'RMSPROP':
             return keras.optimizers.RMSprop(
@@ -502,34 +506,27 @@ class MaskRCNN:
 
         # Add L2 Regularization
         # Skip gamma and beta weights of batch normalization layers.
-        '''self.keras_model.add_loss(
-            lambda: tf.add_n([
-                keras.regularizers.l2(self.config.WEIGHT_DECAY)(w) / tf.cast(tf.size(input=w), tf.float32)
-                for w in self.keras_model.trainable_weights
-                if 'gamma' not in w.name and 'beta' not in w.name]
+        if self.config.OPTIMIZER == 'SGD':
+            self.keras_model.add_loss(
+                lambda: tf.add_n([
+                    keras.regularizers.l2(self.config.WEIGHT_DECAY)(w) / tf.cast(tf.size(input=w), tf.float32)
+                    for w in self.keras_model.trainable_weights
+                    if 'gamma' not in w.name and 'beta' not in w.name]
+                )
             )
-        )'''
-
+            # Compile
+            losses_functions = [None] * len(self.keras_model.outputs)
+        else:
+            losses_functions = [
+                "categorical_crossentropy" if output.name in loss_names else None
+                for output in self.keras_model.outputs
+            ]
         # Compile
         self.keras_model.compile(
             optimizer=optimizer,
-            loss=[None] * len(self.keras_model.outputs)
+            loss=losses_functions
         )
-        # Add metrics for losses
-        '''for name in loss_names:
-            if name in self.keras_model.metrics_names:
-                continue
-            layer = self.keras_model.get_layer(name)
-            self.keras_model.metrics_names.append(name)
 
-            loss = KL.Lambda(lambda x: tf.reduce_mean(input_tensor=x, keepdims=True)
-            )(layer.output)
-            #self.keras_model.metrics_tensors.append(loss)
-            self.keras_model.add_metric(
-                loss,
-                name=name,
-                aggregation='mean'
-            )'''
 
     def set_trainable(self, layer_regex, keras_model=None, indent=0, verbose=1):
         """Sets model layers as trainable if their names match
@@ -607,8 +604,18 @@ class MaskRCNN:
         self.checkpoint_path = self.checkpoint_path.replace(
             "*epoch*", "{epoch:04d}")
 
-    def train(self, train_dataset, val_dataset, learning_rate, epochs, layers,
-              augmentation=None, custom_callbacks=None, no_augmentation_sources=None):
+    def train(
+            self,
+            train_dataset,
+            val_dataset,
+            learning_rate,
+            epochs,
+            layers,
+            use_early_stopping=True,
+            augmentation=None,
+            custom_callbacks=None,
+            no_augmentation_sources=None
+    ):
         """Train the model.
         train_dataset, val_dataset: Training and validation Dataset objects.
         learning_rate: The learning rate to train with
@@ -658,7 +665,7 @@ class MaskRCNN:
             layers = layer_regex[layers]
 
         # Data generators
-        train_generator = self._data_generator(
+        '''train_generator = self._data_generator(
             train_dataset, self.config, shuffle=True,
             augmentation=augmentation, batch_size=self.config.BATCH_SIZE,
             no_augmentation_sources=no_augmentation_sources, detection_targets=True,
@@ -666,11 +673,21 @@ class MaskRCNN:
         val_generator = self._data_generator(
             val_dataset, self.config, shuffle=True,
             batch_size=self.config.BATCH_SIZE,
-            detection_targets=True, random_rois=1)
+            detection_targets=True, random_rois=1)'''
+        train_generator = DataGenerator(train_dataset, self.config, shuffle=True,
+                                        augmentation=augmentation, random_rois=4)
+        val_generator = DataGenerator(val_dataset, self.config, shuffle=True, random_rois=4)
 
         # Create log_dir if it does not exist
         if not os.path.exists(self.log_dir):
             os.makedirs(self.log_dir)
+
+        early_stopping_callback = None
+        if use_early_stopping:
+            early_stopping_callback = tf.keras.callbacks.EarlyStopping(
+                monitor='loss',
+                patience=3
+            )
 
         # Callbacks
         callbacks = [
@@ -679,6 +696,7 @@ class MaskRCNN:
             keras.callbacks.ModelCheckpoint(self.checkpoint_path,
                                             verbose=0, save_weights_only=True),
             ClearMemory(),
+            early_stopping_callback
         ]
 
         # Add custom callbacks to the list
@@ -1227,7 +1245,7 @@ class MaskRCNN:
             rpn_bbox[ix] = [
                 (gt_center_y - a_center_y) / a_h,
                 (gt_center_x - a_center_x) / a_w,
-                np.log(gt_h / a_h),
+                np.log(gt_h / (a_h + 0.001)),
                 np.log(gt_w / a_w),
             ]
             # Normalize
@@ -1630,6 +1648,7 @@ class MaskRCNN:
                 if b >= batch_size - 1:
                     inputs = [batch_images, batch_image_meta, batch_rpn_match, batch_rpn_bbox,
                               batch_gt_class_ids, batch_gt_boxes, batch_gt_masks]
+                    # TODO: Remover gambiarra do padding
                     padding = np.ones(shape=batch_images.shape)
                     outputs = [padding, padding, padding, padding, batch_images, batch_image_meta, batch_rpn_match, batch_rpn_bbox,
                               batch_gt_class_ids, batch_gt_boxes, batch_gt_masks]

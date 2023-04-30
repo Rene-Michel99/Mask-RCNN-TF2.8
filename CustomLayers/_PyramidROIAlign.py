@@ -40,7 +40,6 @@ class PyramidROIAlign(tf.keras.layers.Layer):
         # Feature Maps. List of feature maps from different level of the
         # feature pyramid. Each is [batch, height, width, channels]
         feature_maps = inputs[2:]
-        del inputs
 
         # Assign each ROI to a level in the pyramid based on the ROI area.
         y1, x1, y2, x2 = tf.split(boxes, 4, axis=2)
@@ -110,7 +109,7 @@ class PyramidROIAlign(tf.keras.layers.Layer):
         ix = tf.nn.top_k(sorting_tensor, k=tf.shape(
             box_to_level)[0]).indices[::-1]
         ix = tf.gather_nd([box_to_level[:, 2]], tf.stack([tf.zeros_like(ix), ix], axis=-1))
-        pooled = tf.gather_nd([pooled], tf.stack([tf.zeros_like(ix), ix], axis=-1))
+        pooled = tf.gather(pooled, ix)
 
         # Re-add the batch dimension
         shape = tf.concat([tf.shape(boxes)[:2], tf.shape(pooled)[1:]], axis=0, name="concat_shape_PyramidROIAlign")

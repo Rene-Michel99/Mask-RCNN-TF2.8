@@ -37,7 +37,9 @@ class RPNBboxLoss(tf.keras.layers.Layer):
 
         loss = smooth_l1_loss(target_bbox, rpn_bbox, name="RPNBboxLoss")
         self.add_metric(loss, name="rpn_bbox_loss")
-        return K.mean(loss)
+
+        loss = K.switch(tf.size(loss) > 0, K.mean(loss), tf.constant(0.0))
+        return loss
 
     def get_config(self):
         config = super().get_config()

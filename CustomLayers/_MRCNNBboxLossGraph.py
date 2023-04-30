@@ -46,4 +46,10 @@ class MRCNNBboxLossGraph(tf.keras.layers.Layer):
         metric = smooth_l1_loss(target_bbox, pred_bbox, name="MRCNNBboxLossGraph")
         self.add_metric(metric, name="mrcnn_bbox_loss")
 
-        return K.mean(metric)
+        loss = K.switch(
+            tf.size(target_bbox) > 0,
+            metric,
+            tf.constant(0.0)
+        )
+        loss = K.mean(loss)
+        return loss

@@ -160,6 +160,9 @@ def load_image_gt(dataset, config, image_id, augment=False, augmentation=None,
             image = np.fliplr(image)
             mask = np.fliplr(mask)
 
+    _idx = np.sum(np.where(mask > 0, 1, 0), axis=(0, 1)) >= 0
+    mask = mask[:, :, _idx]
+
     # Augmentation
     # This requires the imgaug lib (https://github.com/aleju/imgaug)
     if augmentation:

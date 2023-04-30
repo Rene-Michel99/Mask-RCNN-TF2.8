@@ -49,7 +49,6 @@ class ProposalLayer(tf.keras.layers.Layer):
         deltas = inputs[1] * np.reshape(self.rpn_bbox_std_dev, [1, 1, 4])
         # Anchors
         anchors = inputs[2]
-        del inputs
 
         # Improve performance by trimming to top anchors by score
         # and doing the rest on the smaller subset.
@@ -61,9 +60,9 @@ class ProposalLayer(tf.keras.layers.Layer):
 
         scores = tf.convert_to_tensor(self.batch_slice(
             [scores, ix],
-            lambda x, y: tf.gather_nd(
-                [x], tf.stack([tf.zeros_like(y), y], axis=-1),
-                name="gathernd_score"
+            lambda x, y: tf.gather(
+                x, y,
+                name="gather_score"
             ),
             self.images_per_gpu
         ))
@@ -71,9 +70,9 @@ class ProposalLayer(tf.keras.layers.Layer):
 
         deltas = self.batch_slice(
             [deltas, ix],
-            lambda x, y: tf.gather_nd(
-                [x], tf.stack([tf.zeros_like(y), y], axis=-1),
-                name="gathernd_deltas"
+            lambda x, y: tf.gather(
+                x, y,
+                name="gather_deltas"
             ),
             self.images_per_gpu
         )
@@ -81,9 +80,9 @@ class ProposalLayer(tf.keras.layers.Layer):
 
         pre_nms_anchors = self.batch_slice(
             [anchors, ix],
-            lambda a, x: tf.gather_nd(
-                [a], tf.stack([tf.zeros_like(x), x], axis=-1),
-                name="gathernd_pre_nms_anchors"
+            lambda a, x: tf.gather(
+                a, x,
+                name="gather_pre_nms_anchors"
             ),
             self.images_per_gpu,
             names=["pre_nms_anchors"]
@@ -121,8 +120,8 @@ class ProposalLayer(tf.keras.layers.Layer):
                 self.nms_threshold, name="rpn_non_max_suppression"
             )
 
-            _proposals = tf.gather_nd(
-                [_boxes], tf.stack([tf.zeros_like(_indices), _indices], axis=-1),
+            _proposals = tf.gather(
+                _boxes, _indices,
                 name="dp_nms"
             )
 

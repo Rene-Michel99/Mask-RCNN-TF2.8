@@ -41,6 +41,7 @@ def refine_detections_graph(
     Returns detections shaped: [num_detections, (y1, x1, y2, x2, class_id, score)] where
         coordinates are normalized.
     """
+    bbox_std_dev = tf.cast(bbox_std_dev, tf.float32)
     # Class IDs per ROI
     class_ids = tf.argmax(probs, axis=1, output_type=tf.int32)
     # Class probability of the top class of each ROI
@@ -378,7 +379,7 @@ def detection_targets_graph(
         boxes = tf.concat([y1, x1, y2, x2], 1)
     box_ids = tf.range(0, tf.shape(roi_masks)[0])
     masks = tf.image.crop_and_resize(
-        tf.clip_by_value(tf.cast(roi_masks, tf.float32), 0, 255),
+        tf.cast(roi_masks, tf.float32),
         boxes, box_ids, mask_shape
     )
     # Remove the extra dimension from masks.

@@ -19,6 +19,7 @@ class DetectionLayer(tf.keras.layers.Layer):
             detection_max_instances,
             detections_nms_threshold,
             images_per_gpu,
+            batch_size,
             **kwargs
     ):
         super(DetectionLayer, self).__init__(**kwargs)
@@ -27,6 +28,7 @@ class DetectionLayer(tf.keras.layers.Layer):
         self.detection_max_instances = detection_max_instances
         self.detections_nms_threshold = detections_nms_threshold
         self.images_per_gpu = images_per_gpu
+        self.batch_size = batch_size
 
         self.refine_detections_graph = refine_detections_graph
         self.norm_boxes_graph = norm_boxes_graph
@@ -65,7 +67,8 @@ class DetectionLayer(tf.keras.layers.Layer):
         # normalized coordinates
         return tf.reshape(
             detections_batch,
-            [self.batch_size, self.detection_max_instances, 6])
+            [self.batch_size, self.detection_max_instances, 6]
+        )
 
     def compute_output_shape(self, input_shape):
         return (None, self.detection_max_instances, 6)
