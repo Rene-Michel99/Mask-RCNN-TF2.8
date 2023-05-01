@@ -46,7 +46,7 @@ class DataGenerator(KU.Sequence):
         """
 
     def __init__(self, dataset, config, shuffle=True, augmentation=None,
-                 random_rois=0, detection_targets=True):
+                 random_rois=0, detection_targets=False):
 
         self.image_ids = np.copy(dataset.image_ids)
         self.dataset = dataset
@@ -533,21 +533,24 @@ class DataGenerator(KU.Sequence):
         batch_mrcnn_class_ids = np.expand_dims(
             batch_mrcnn_class_ids, -1
         )
-        outputs = [
-            padding, padding, padding, padding,
-            batch_mrcnn_class_ids, batch_mrcnn_bbox, batch_mrcnn_mask,
-            batch_rpn_rois, batch_rois, batch_rpn_match, batch_rpn_bbox,
-            batch_gt_class_ids, batch_gt_boxes, batch_gt_masks
+        ''' Expected output
+        [
+            rpn_class_logits, rpn_class, rpn_bbox, mrcnn_class_logits,
+            mrcnn_class, mrcnn_bbox, mrcnn_mask,
+            rpn_rois, output_rois, rpn_class_loss, rpn_bbox_loss,
+            class_loss, bbox_loss, mask_loss
         ]
+        '''
+        outputs = []
 
-        '''if self.random_rois:
-            #inputs.extend([batch_rpn_rois])
+        if self.random_rois:
+            inputs.extend([batch_rpn_rois])
             if self.detection_targets:
-                #inputs.extend([batch_rois])
+                inputs.extend([batch_rois])
                 # Keras requires that output and targets have the same number of dimensions
                 batch_mrcnn_class_ids = np.expand_dims(
                     batch_mrcnn_class_ids, -1)
                 outputs.extend(
                     [batch_mrcnn_class_ids, batch_mrcnn_bbox, batch_mrcnn_mask]
-                )'''
+                )
         return inputs, outputs

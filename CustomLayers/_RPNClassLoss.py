@@ -15,6 +15,7 @@ class RPNClassLoss(tf.keras.layers.Layer):
             """
         # Squeeze last dim to simplify
         rpn_match = tf.squeeze(inputs[0], -1)
+        rpn_class_logits = inputs[1]
 
         # Get anchor classes. Convert the -1/+1 match to 0/1 values.
         anchor_class = tf.cast(tf.equal(rpn_match, 1), tf.int32)
@@ -22,7 +23,7 @@ class RPNClassLoss(tf.keras.layers.Layer):
         # but neutral anchors (match value = 0) don't.
         indices = tf.where(tf.not_equal(rpn_match, 0))
         # Pick rows that contribute to the loss and filter out the rest.
-        rpn_class_logits = tf.gather_nd(inputs[1], indices)
+        rpn_class_logits = tf.gather_nd(rpn_class_logits, indices)
         anchor_class = tf.gather_nd(anchor_class, indices)
         # Cross entropy loss
         loss = K.sparse_categorical_crossentropy(

@@ -8,6 +8,8 @@ class MaskRCNNModel(Model):
 
         with tf.GradientTape() as tape:
             y_pred = self(x, training=True) # noqa
+            if y in [None, [], ()]:
+                y_pred = []
             loss = self.compiled_loss(y, y_pred, regularization_losses=self.losses)
 
         # Compute gradients

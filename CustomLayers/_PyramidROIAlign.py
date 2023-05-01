@@ -108,7 +108,7 @@ class PyramidROIAlign(tf.keras.layers.Layer):
         sorting_tensor = box_to_level[:, 0] * 100000 + box_to_level[:, 1]
         ix = tf.nn.top_k(sorting_tensor, k=tf.shape(
             box_to_level)[0]).indices[::-1]
-        ix = tf.gather_nd([box_to_level[:, 2]], tf.stack([tf.zeros_like(ix), ix], axis=-1))
+        ix = tf.gather(box_to_level[:, 2], ix)
         pooled = tf.gather(pooled, ix)
 
         # Re-add the batch dimension

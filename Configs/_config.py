@@ -24,7 +24,7 @@ class Config(object):
     # experiment is running.
     NAME = None  # Override in sub-classes
 
-    OPTIMIZER = "ADAM"
+    OPTIMIZER = "SGD"
 
     # NUMBER OF GPUs to use. When using only a CPU, this needs to be set to 1.
     GPU_COUNT = 1

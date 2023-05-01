@@ -1,5 +1,6 @@
 import numpy as np
 import tensorflow as tf
+from tensorflow.python.eager import context
 
 from resources.utils import batch_slice
 from ._Common import apply_box_deltas_graph, clip_boxes_graph
@@ -39,7 +40,6 @@ class ProposalLayer(tf.keras.layers.Layer):
         self.batch_slice = batch_slice
         self.apply_box_deltas_graph = apply_box_deltas_graph
         self.clip_boxes_graph = clip_boxes_graph
-
 
     @tf.function
     def call(self, inputs):
@@ -135,6 +135,12 @@ class ProposalLayer(tf.keras.layers.Layer):
             nms,
             self.images_per_gpu
         )
+
+        if not context.executing_eagerly():
+            # Infer the static output shape:
+            out_shape = self.compute_output_shape(None)
+            proposals.set_shape(out_shape)
+
         return proposals
 
     def compute_output_shape(self, input_shape):

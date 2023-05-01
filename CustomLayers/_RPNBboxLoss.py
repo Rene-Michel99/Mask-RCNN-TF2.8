@@ -23,10 +23,10 @@ class RPNBboxLoss(tf.keras.layers.Layer):
         target_bbox = inputs[0]
         # Positive anchors contribute to the loss, but negative and
         # neutral anchors (match value of 0 or -1) don't.
-        rpn_match = K.squeeze(inputs[1], -1)
+        rpn_match = tf.squeeze(inputs[1], -1)
         rpn_bbox = inputs[2]
+
         indices = tf.where(tf.equal(rpn_match, 1))
-        del inputs
         # Pick bbox deltas that contribute to the loss
         rpn_bbox = tf.gather_nd(rpn_bbox, indices)
 
