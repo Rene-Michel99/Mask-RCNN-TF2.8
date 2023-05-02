@@ -20,7 +20,6 @@ class MRCNNMaskLossGraph(tf.keras.layers.Layer):
         # Reshape for simplicity. Merge first two dimensions into one.
         target_class_ids = tf.reshape(inputs[1], (-1,))
         pred_masks = inputs[2]
-        del inputs
 
         mask_shape = tf.shape(target_masks)
         target_masks = tf.reshape(target_masks, (-1, mask_shape[2], mask_shape[3]))

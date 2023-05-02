@@ -31,11 +31,6 @@ class RPNClassLoss(tf.keras.layers.Layer):
             output=rpn_class_logits,
             from_logits=True
         )
-        '''metric = tf.keras.metrics.sparse_categorical_crossentropy(
-            anchor_class,
-            rpn_class_logits,
-            from_logits=True
-        )'''
         self.add_metric(loss, name="rpn_class_loss")
 
         loss = K.switch(tf.size(loss) > 0, K.mean(loss), tf.constant(0.0))

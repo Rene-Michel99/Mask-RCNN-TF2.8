@@ -1,3 +1,6 @@
+import tensorflow.keras.utils as KU
+import numpy as np
+
 from resources.Data_utils import load_image_gt
 from resources.utils import (
     compute_backbone_shapes,
@@ -7,8 +10,6 @@ from resources.utils import (
     compute_iou,
     resize
 )
-import tensorflow.keras.utils as KU
-import numpy as np
 
 
 class DataGenerator(KU.Sequence):
@@ -86,7 +87,6 @@ class DataGenerator(KU.Sequence):
                    1 = positive anchor, -1 = negative anchor, 0 = neutral
         rpn_bbox: [N, (dy, dx, log(dh), log(dw))] Anchor bbox deltas.
         """
-        # RPN Match: 1 = positive anchor, -1 = negative anchor, 0 = neutral
         rpn_match = np.zeros([anchors.shape[0]], dtype=np.int32)
         # RPN bounding boxes: [max anchors per image, (dy, dx, log(dh), log(dw))]
         rpn_bbox = np.zeros((config.RPN_TRAIN_ANCHORS_PER_IMAGE, 4))
@@ -174,7 +174,7 @@ class DataGenerator(KU.Sequence):
             rpn_bbox[ix] = [
                 (gt_center_y - a_center_y) / a_h,
                 (gt_center_x - a_center_x) / a_w,
-                np.log(gt_h / (a_h + 0.001)),
+                np.log(gt_h / a_h),
                 np.log(gt_w / a_w),
             ]
             # Normalize
@@ -276,13 +276,13 @@ class DataGenerator(KU.Sequence):
         masks: [TRAIN_ROIS_PER_IMAGE, height, width, NUM_CLASSES). Class specific masks cropped
                to bbox boundaries and resized to neural network output size.
         """
-        gt_masks = gt_masks.astype(bool)
+        #gt_masks = gt_masks.astype(bool)
         assert rpn_rois.shape[0] > 0
         assert gt_class_ids.dtype == np.int32, "Expected int but got {}".format(
             gt_class_ids.dtype)
         assert gt_boxes.dtype == np.int32, "Expected int but got {}".format(
             gt_boxes.dtype)
-        assert gt_masks.dtype == bool, "Expected bool but got {}".format(
+        assert gt_masks.dtype == np.bool_, "Expected bool but got {}".format(
             gt_masks.dtype)
 
         # It's common to add GT Boxes to ROIs but we don't do that here because
@@ -306,7 +306,8 @@ class DataGenerator(KU.Sequence):
         for i in range(overlaps.shape[1]):
             gt = gt_boxes[i]
             overlaps[:, i] = compute_iou(
-                gt, rpn_rois, gt_box_area[i], rpn_roi_area)
+                gt, rpn_rois, gt_box_area[i], rpn_roi_area
+            )
 
         # Assign ROIs to GT boxes
         rpn_roi_iou_argmax = np.argmax(overlaps, axis=1)
@@ -356,8 +357,6 @@ class DataGenerator(KU.Sequence):
                 keep = np.concatenate([keep, keep_bg_ids])
             else:
                 # Fill the rest with repeated bg rois.
-                if len(keep_bg_ids) == 0:
-                    keep_bg_ids = np.array([0], dtype=np.int32)
                 keep_extra_ids = np.random.choice(
                     keep_bg_ids, remaining, replace=True)
                 keep = np.concatenate([keep, keep_extra_ids])
@@ -528,19 +527,10 @@ class DataGenerator(KU.Sequence):
 
         inputs = [batch_images, batch_image_meta, batch_rpn_match, batch_rpn_bbox,
                   batch_gt_class_ids, batch_gt_boxes, batch_gt_masks]
-        padding = np.ones(shape=batch_images.shape)
 
         batch_mrcnn_class_ids = np.expand_dims(
             batch_mrcnn_class_ids, -1
         )
-        ''' Expected output
-        [
-            rpn_class_logits, rpn_class, rpn_bbox, mrcnn_class_logits,
-            mrcnn_class, mrcnn_bbox, mrcnn_mask,
-            rpn_rois, output_rois, rpn_class_loss, rpn_bbox_loss,
-            class_loss, bbox_loss, mask_loss
-        ]
-        '''
         outputs = []
 
         if self.random_rois:

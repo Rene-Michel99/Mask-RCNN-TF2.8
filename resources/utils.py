@@ -188,7 +188,6 @@ def compute_overlaps_masks(masks1, masks2):
     """Computes IoU overlaps between two sets of masks.
     masks1, masks2: [Height, Width, instances]
     """
-    
     # If either set of masks is empty return empty result
     if masks1.shape[-1] == 0 or masks2.shape[-1] == 0:
         return np.zeros((masks1.shape[-1], masks2.shape[-1]))
@@ -636,10 +635,10 @@ def unmold_mask(mask, bbox, image_shape):
     full_mask[y1:y2, x1:x2] = mask
     return full_mask
 
-
 ############################################################
 #  Anchors
 ############################################################
+
 
 def generate_anchors(scales, ratios, shape, feature_stride, anchor_stride):
     """
@@ -968,12 +967,12 @@ def resize(image, output_shape, order=1, mode='constant', cval=0, clip=True,
         # New in 0.14: anti_aliasing. Default it to False for backward
         # compatibility with skimage 0.13.
         return skimage.transform.resize(
-            image.astype(np.uint8), output_shape,
-            order=order, mode=mode, cval=cval, clip=clip,
+            image, output_shape,
+            order=0, mode=mode, cval=cval, clip=clip,
             preserve_range=preserve_range, anti_aliasing=anti_aliasing,
             anti_aliasing_sigma=anti_aliasing_sigma)
     else:
         return skimage.transform.resize(
-            image.astype(np.uint8), output_shape,
-            order=order, mode=mode, cval=cval, clip=clip,
+            image, output_shape,
+            order=0, mode=mode, cval=cval, clip=clip,
             preserve_range=preserve_range)

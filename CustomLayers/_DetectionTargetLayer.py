@@ -3,6 +3,16 @@ from resources.utils import batch_slice
 from ._Common import detection_targets_graph
 
 
+class Interface:
+    def __init__(self, config):
+        self.IMAGES_PER_GPU = config.IMAGES_PER_GPU
+        self.TRAIN_ROIS_PER_IMAGE = config.TRAIN_ROIS_PER_IMAGE
+        self.MASK_SHAPE = config.MASK_SHAPE
+        self.ROI_POSITIVE_RATIO = config.ROI_POSITIVE_RATIO
+        self.BBOX_STD_DEV = config.BBOX_STD_DEV
+        self.USE_MINI_MASK = config.USE_MINI_MASK
+
+
 class DetectionTargetLayer(tf.keras.layers.Layer):
     """Subsamples proposals and generates target box refinement, class_ids,
     and masks for each.
@@ -30,21 +40,11 @@ class DetectionTargetLayer(tf.keras.layers.Layer):
 
     def __init__(
             self,
-            images_per_gpu,
-            train_rois_per_image,
-            mask_shape,
-            roi_positive_ratio,
-            bbox_std_dev,
-            use_mini_mask,
+            config,
             **kwargs
     ):
         super(DetectionTargetLayer, self).__init__(**kwargs)
-        self.images_per_gpu = images_per_gpu
-        self.train_rois_per_image = train_rois_per_image
-        self.mask_shape = mask_shape
-        self.roi_positive_ratio = roi_positive_ratio
-        self.bbox_std_dev = bbox_std_dev
-        self.use_mini_mask = use_mini_mask
+        self.interface = Interface(config)
 
         self.detection_targets_graph = detection_targets_graph
         self.batch_slice = batch_slice
@@ -61,23 +61,18 @@ class DetectionTargetLayer(tf.keras.layers.Layer):
         outputs = self.batch_slice(
             [proposals, gt_class_ids, gt_boxes, gt_masks],
             lambda w, x, y, z: self.detection_targets_graph(
-                w, x, y, z,
-                train_rois_per_image=self.train_rois_per_image,
-                roi_positive_ratio=self.roi_positive_ratio,
-                bbox_std_dev=self.bbox_std_dev,
-                use_mini_mask=self.use_mini_mask,
-                mask_shape=self.mask_shape
-            ), self.images_per_gpu, names=names
+                w, x, y, z, self.interface
+            ), self.interface.IMAGES_PER_GPU, names=names
         )
         return outputs
 
     def compute_output_shape(self, input_shape):
         return [
-            (None, self.train_rois_per_image, 4),  # rois
-            (None, self.train_rois_per_image),  # class_ids
-            (None, self.train_rois_per_image, 4),  # deltas
-            (None, self.train_rois_per_image, self.mask_shape[0],
-             self.mask_shape[1])  # masks
+            (None, self.interface.TRAIN_ROIS_PER_IMAGE, 4),  # rois
+            (None, self.interface.TRAIN_ROIS_PER_IMAGE),  # class_ids
+            (None, self.interface.TRAIN_ROIS_PER_IMAGE, 4),  # deltas
+            (None, self.interface.TRAIN_ROIS_PER_IMAGE, self.interface.MASK_SHAPE[0],
+             self.interface.MASK_SHAPE[1])  # masks
         ]
 
     @staticmethod
@@ -87,11 +82,6 @@ class DetectionTargetLayer(tf.keras.layers.Layer):
     def get_config(self):
         config = super().get_config()
         config.update({
-            "images_per_gpu": self.images_per_gpu,
-            "train_rois_per_image": self.train_rois_per_image,
-            "mask_shape": self.mask_shape,
-            "roi_positive_ratio": self.roi_positive_ratio,
-            "bbox_std_dev": self.bbox_std_dev,
-            "use_mini_mask": self.use_mini_mask
+            "interface": self.interface
         })
         return config

@@ -3,6 +3,16 @@ from ._Common import norm_boxes_graph, refine_detections_graph
 from resources.utils import batch_slice, parse_image_meta_graph
 
 
+class Interface:
+    def __init__(self, config):
+        self.BBOX_STD_DEV = config.BBOX_STD_DEV
+        self.DETECTION_MIN_CONFIDENCE = config.DETECTION_MIN_CONFIDENCE
+        self.DETECTION_MAX_INSTANCES = config.DETECTION_MAX_INSTANCES
+        self.DETECTION_NMS_THRESHOLD = config.DETECTION_NMS_THRESHOLD
+        self.IMAGES_PER_GPU = config.IMAGES_PER_GPU
+        self.BATCH_SIZE = config.BATCH_SIZE
+
+
 class DetectionLayer(tf.keras.layers.Layer):
     """Takes classified proposal boxes and their bounding box deltas and
     returns the final detection boxes.
@@ -13,22 +23,10 @@ class DetectionLayer(tf.keras.layers.Layer):
     """
 
     def __init__(
-            self,
-            bbox_std_dev,
-            detection_min_confidence,
-            detection_max_instances,
-            detections_nms_threshold,
-            images_per_gpu,
-            batch_size,
-            **kwargs
+            self, config, **kwargs
     ):
         super(DetectionLayer, self).__init__(**kwargs)
-        self.bbox_std_dev = bbox_std_dev
-        self.detection_min_confidence = detection_min_confidence
-        self.detection_max_instances = detection_max_instances
-        self.detections_nms_threshold = detections_nms_threshold
-        self.images_per_gpu = images_per_gpu
-        self.batch_size = batch_size
+        self.interface = Interface(config)
 
         self.refine_detections_graph = refine_detections_graph
         self.norm_boxes_graph = norm_boxes_graph
@@ -54,12 +52,8 @@ class DetectionLayer(tf.keras.layers.Layer):
         detections_batch = self.batch_slice(
             [rois, mrcnn_class, mrcnn_bbox, window],
             lambda x, y, w, z: self.refine_detections_graph(
-                x, y, w, z,
-                self.bbox_std_dev,
-                self.detection_min_confidence,
-                self.detection_max_instances,
-                self.detections_nms_threshold
-            ), self.images_per_gpu
+                x, y, w, z, self.interface
+            ), self.interface.IMAGES_PER_GPU
         )
 
         # Reshape output
@@ -67,8 +61,8 @@ class DetectionLayer(tf.keras.layers.Layer):
         # normalized coordinates
         return tf.reshape(
             detections_batch,
-            [self.batch_size, self.detection_max_instances, 6]
+            [self.interface.BATCH_SIZE, self.interface.DETECTION_MAX_INSTANCES, 6]
         )
 
     def compute_output_shape(self, input_shape):
-        return (None, self.detection_max_instances, 6)
+        return (None, self.interface.DETECTION_MAX_INSTANCES, 6)

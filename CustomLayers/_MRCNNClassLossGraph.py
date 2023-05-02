@@ -23,8 +23,8 @@ class MRCNNClassLossGraph(tf.keras.layers.Layer):
         # to int to get around it.
         target_class_ids = tf.cast(inputs[0], tf.int64)
         pred_class_ids = tf.argmax(pred_class_logits, axis=2)
-        del inputs
         # Find predictions of classes that are not in the dataset.
+        # TODO: Make shape to fit batch size
         #active_class_ids = tf.reshape(active_class_ids, (pred_class_ids.shape[0], -1))
         pred_active = tf.gather(
             active_class_ids[0],

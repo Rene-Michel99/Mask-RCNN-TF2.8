@@ -104,7 +104,9 @@ def fpn_classifier_graph(rois, feature_maps, image_meta,
     # ROI Pooling
     # Shape: [batch, num_rois, POOL_SIZE, POOL_SIZE, channels]
     x = PyramidROIAlign( # noqa
-        [pool_size, pool_size], name="roi_align_classifier")([rois, image_meta] + feature_maps)
+        [pool_size, pool_size],
+        name="roi_align_classifier"
+    )([rois, image_meta] + feature_maps)
     # Two 1024 FC layers (implemented with Conv2D for consistency)
     x = KL.TimeDistributed(KL.Conv2D(fc_layers_size, (pool_size, pool_size), padding="valid"),
                            name="mrcnn_class_conv1")(x)
@@ -115,8 +117,7 @@ def fpn_classifier_graph(rois, feature_maps, image_meta,
     x = KL.TimeDistributed(BatchNorm(), name='mrcnn_class_bn2')(x, training=train_bn)
     x = KL.Activation('relu')(x)
 
-    shared = KL.Lambda(lambda l: K.squeeze(K.squeeze(l, 3), 2),
-                       name="pool_squeeze")(x)
+    shared = KL.Lambda(lambda l: K.squeeze(K.squeeze(l, 3), 2), name="pool_squeeze")(x)
 
     # Classifier head
     mrcnn_class_logits = KL.TimeDistributed(KL.Dense(num_classes),
@@ -156,7 +157,8 @@ def build_fpn_mask_graph(rois, feature_maps, image_meta,
     # ROI Pooling
     # Shape: [batch, num_rois, MASK_POOL_SIZE, MASK_POOL_SIZE, channels]
     x = PyramidROIAlign( # noqa
-        [pool_size, pool_size], name="roi_align_mask")([rois, image_meta] + feature_maps)
+        [pool_size, pool_size], name="roi_align_mask"
+    )([rois, image_meta] + feature_maps)
 
     # Conv layers
     x = KL.TimeDistributed(KL.Conv2D(256, (3, 3), padding="same"),
