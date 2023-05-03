@@ -91,7 +91,7 @@ def batch_pack_graph(x, counts, num_rows):
     outputs = []
     for i in range(num_rows):
         outputs.append(x[i, :counts[i]])
-    return tf.concat(outputs, axis=0, name="batch_pack_graph")
+    return tf.concat(outputs, axis=0)
 
 
 @tf.function

@@ -12,8 +12,6 @@ class RPNBboxLoss(tf.keras.layers.Layer):
     @tf.function
     def call(self, inputs):
         """Return the RPN bounding box loss graph.
-
-            config: the model config object.
             target_bbox: [batch, max positive anchors, (dy, dx, log(dh), log(dw))].
                 Uses 0 padding to fill in unsed bbox deltas.
             rpn_match: [batch, anchors, 1]. Anchor match type. 1=positive,

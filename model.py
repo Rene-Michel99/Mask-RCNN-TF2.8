@@ -147,11 +147,8 @@ class MaskRCNN:
             else config.POST_NMS_ROIS_INFERENCE
         rpn_rois = ProposalLayer(  # noqa
             proposal_count=proposal_count,
-            nms_threshold=config.RPN_NMS_THRESHOLD,
-            name="ROI",
-            images_per_gpu=config.IMAGES_PER_GPU,
-            pre_nms_limit=config.PRE_NMS_LIMIT,
-            rpn_bbox_std_dev=config.RPN_BBOX_STD_DEV
+            config=config,
+            name="ROI"
         )([rpn_class, rpn_bbox, anchors])
         return rpn_rois
 
@@ -529,9 +526,6 @@ class MaskRCNN:
         """Gets the model ready for training. Adds losses, regularization, and
         metrics. Then calls the Keras compile() function.
         """
-        if self.is_compiled:
-            print('Mask R-CNN is already compiled, skipping')
-            return 
 
         if limit_device:
             gpus = tf.config.experimental.list_physical_devices('GPU')
@@ -551,21 +545,23 @@ class MaskRCNN:
             "rpn_class_loss", "rpn_bbox_loss",
             "mrcnn_class_loss", "mrcnn_bbox_loss", "mrcnn_mask_loss"
         ]
-        for name in loss_names:
-            layer = self.keras_model.get_layer(name)
-            if name == "mrcnn_class_loss":
-                calc_loss = (tf.reshape(
-                    tf.reduce_mean(layer.output, keepdims=True) * self.config.LOSS_WEIGHTS.get(name, 1.), []
-                ))
-            else:
-                calc_loss = (tf.reduce_mean(layer.output, keepdims=True) * self.config.LOSS_WEIGHTS.get(name, 1.))
-            self.keras_model.add_loss(
-                calc_loss
-            )
+        if not self.is_compiled:
+            for name in loss_names:
+                layer = self.keras_model.get_layer(name)
+                if name == "mrcnn_class_loss":
+                    calc_loss = (tf.reshape(
+                        tf.reduce_mean(layer.output, keepdims=True) * self.config.LOSS_WEIGHTS.get(name, 1.), []
+                    ))
+                else:
+                    calc_loss = (tf.reduce_mean(layer.output, keepdims=True) * self.config.LOSS_WEIGHTS.get(name, 1.))
+                self.keras_model.add_loss(
+                    calc_loss
+                )
 
+        losses_functions = [None] * len(self.keras_model.outputs)
         # Add L2 Regularization
         # Skip gamma and beta weights of batch normalization layers.
-        if self.config.OPTIMIZER == 'SGD':
+        if self.config.OPTIMIZER == 'SGD' and not self.is_compiled:
             self.keras_model.add_loss(
                 lambda: tf.add_n([
                     keras.regularizers.l2(self.config.WEIGHT_DECAY)(w) / tf.cast(tf.size(input=w), tf.float32)
@@ -573,8 +569,6 @@ class MaskRCNN:
                     if 'gamma' not in w.name and 'beta' not in w.name]
                 )
             )
-            # Compile
-            losses_functions = [None] * len(self.keras_model.outputs)
         else:
             losses_functions = [
                 "categorical_crossentropy" if output.name in loss_names else None
@@ -734,7 +728,6 @@ class MaskRCNN:
         if not os.path.exists(self._log_dir):
             os.makedirs(self._log_dir)
 
-
         # Callbacks
         callbacks = [
             keras.callbacks.TensorBoard(log_dir=self._log_dir,
@@ -773,7 +766,6 @@ class MaskRCNN:
 
         history = self.keras_model.fit(
             train_generator,
-            initial_epoch=self.epoch,
             epochs=epochs,
             steps_per_epoch=self.config.STEPS_PER_EPOCH,
             callbacks=callbacks,

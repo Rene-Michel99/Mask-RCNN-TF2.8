@@ -6,6 +6,19 @@ from resources.utils import batch_slice
 from ._Common import apply_box_deltas_graph, clip_boxes_graph
 
 
+class Interface:
+    def __init__(self, config):
+        self.NMS_THRESHOLD = config.RPN_NMS_THRESHOLD
+        self.IMAGES_PER_GPU = config.IMAGES_PER_GPU
+        self.PRE_NMS_LIMIT = config.PRE_NMS_LIMIT
+        self.RPN_BBOX_STD_DEV = config.RPN_BBOX_STD_DEV
+
+    def to_dict(self):
+        return {a: getattr(self, a)
+                for a in sorted(dir(self))
+                if not a.startswith("__") and not callable(getattr(self, a))}
+
+
 class ProposalLayer(tf.keras.layers.Layer):
     """Receives anchor scores and selects a subset to pass as proposals
     to the second stage. Filtering is done based on anchor scores and
@@ -24,18 +37,12 @@ class ProposalLayer(tf.keras.layers.Layer):
     def __init__(
             self,
             proposal_count,
-            nms_threshold,
-            images_per_gpu,
-            pre_nms_limit,
-            rpn_bbox_std_dev,
+            config,
             **kwargs
     ):
         super(ProposalLayer, self).__init__(**kwargs)
         self.proposal_count = proposal_count
-        self.nms_threshold = nms_threshold
-        self.images_per_gpu = images_per_gpu
-        self.pre_nms_limit = pre_nms_limit
-        self.rpn_bbox_std_dev = rpn_bbox_std_dev
+        self.interface = Interface(config)
 
         self.batch_slice = batch_slice
         self.apply_box_deltas_graph = apply_box_deltas_graph
@@ -46,13 +53,13 @@ class ProposalLayer(tf.keras.layers.Layer):
         # Box Scores. Use the foreground class confidence. [Batch, num_rois, 1]
         scores = inputs[0][:, :, 1]
         # Box deltas [batch, num_rois, 4]
-        deltas = inputs[1] * np.reshape(self.rpn_bbox_std_dev, [1, 1, 4])
+        deltas = inputs[1] * np.reshape(self.interface.RPN_BBOX_STD_DEV, [1, 1, 4])
         # Anchors
         anchors = inputs[2]
 
         # Improve performance by trimming to top anchors by score
         # and doing the rest on the smaller subset.
-        pre_nms_limit = tf.minimum(self.pre_nms_limit, tf.shape(anchors)[1])
+        pre_nms_limit = tf.minimum(self.interface.PRE_NMS_LIMIT, tf.shape(anchors)[1])
         ix = tf.nn.top_k(
             scores, pre_nms_limit, sorted=True,
             name="top_anchors"
@@ -64,7 +71,7 @@ class ProposalLayer(tf.keras.layers.Layer):
                 x, y,
                 name="gather_score"
             ),
-            self.images_per_gpu
+            self.interface.IMAGES_PER_GPU
         ))
         # Tensor("ROI/packed:0", shape=(8, 4092), dtype=float32)
 
@@ -74,7 +81,7 @@ class ProposalLayer(tf.keras.layers.Layer):
                 x, y,
                 name="gather_deltas"
             ),
-            self.images_per_gpu
+            self.interface.IMAGES_PER_GPU
         )
         # Tensor("ROI/packed_8:0", shape=(8, 4092, 4), dtype=float32)
 
@@ -84,7 +91,7 @@ class ProposalLayer(tf.keras.layers.Layer):
                 a, x,
                 name="gather_pre_nms_anchors"
             ),
-            self.images_per_gpu,
+            self.interface.IMAGES_PER_GPU,
             names=["pre_nms_anchors"]
         )
         # Tensor("ROI/pre_nms_anchors:0", shape=(8, 4092, 4), dtype=float32)
@@ -94,7 +101,7 @@ class ProposalLayer(tf.keras.layers.Layer):
         boxes = self.batch_slice(
             [pre_nms_anchors, deltas],
             lambda x, y: self.apply_box_deltas_graph(x, y),
-            self.images_per_gpu,
+            self.interface.IMAGES_PER_GPU,
             names=["refined_anchors"]
         )
         # Tensor("ROI/refined_anchors:0", shape=(8, 4092, 4), dtype=float32)
@@ -105,7 +112,7 @@ class ProposalLayer(tf.keras.layers.Layer):
         boxes = self.batch_slice(
             boxes,
             lambda x: self.clip_boxes_graph(x, window),
-            self.images_per_gpu,
+            self.interface.IMAGES_PER_GPU,
             names=["refined_anchors_clipped"]
         )
         # Filter out small boxes
@@ -117,7 +124,7 @@ class ProposalLayer(tf.keras.layers.Layer):
         def nms(_boxes, _scores):
             _indices = tf.image.non_max_suppression(
                 _boxes, _scores, self.proposal_count,
-                self.nms_threshold, name="rpn_non_max_suppression"
+                self.interface.NMS_THRESHOLD, name="rpn_non_max_suppression"
             )
 
             _proposals = tf.gather(
@@ -133,7 +140,7 @@ class ProposalLayer(tf.keras.layers.Layer):
         proposals = self.batch_slice(
             [boxes, scores],
             nms,
-            self.images_per_gpu
+            self.interface.IMAGES_PER_GPU
         )
 
         if not context.executing_eagerly():
@@ -150,6 +157,6 @@ class ProposalLayer(tf.keras.layers.Layer):
         config = super(ProposalLayer, self).get_config()
         config.update({
             "proposal_count": self.proposal_count,
-            "nms_threshold": self.nms_threshold,
+            "interface": self.interface.to_dict(),
         })
         return config
