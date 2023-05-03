@@ -42,6 +42,6 @@ class MRCNNClassLossGraph(tf.keras.layers.Layer):
         # Computer loss mean. Use only predictions that contribute
         # to the loss to get a correct mean.
         loss = loss * pred_active
-        self.add_metric(loss, name="mrcnn_class_loss")
-
-        return tf.reduce_sum(loss) / tf.reduce_sum(pred_active)
+        tf.reduce_sum(loss) / tf.reduce_sum(pred_active)
+        self.add_metric(tf.reduce_mean(loss) * 1., name="mrcnn_class_loss")
+        return loss

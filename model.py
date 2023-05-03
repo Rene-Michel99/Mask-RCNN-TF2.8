@@ -2,7 +2,6 @@ import os
 import re
 import datetime
 from enum import Enum
-from collections import OrderedDict
 import multiprocessing
 import tensorflow.keras as keras
 import tensorflow.keras.backend as K
@@ -554,8 +553,14 @@ class MaskRCNN:
         ]
         for name in loss_names:
             layer = self.keras_model.get_layer(name)
+            if name == "mrcnn_class_loss":
+                calc_loss = (tf.reshape(
+                    tf.reduce_mean(layer.output, keepdims=True) * self.config.LOSS_WEIGHTS.get(name, 1.), []
+                ))
+            else:
+                calc_loss = (tf.reduce_mean(layer.output, keepdims=True) * self.config.LOSS_WEIGHTS.get(name, 1.))
             self.keras_model.add_loss(
-                (tf.reduce_mean(layer.output, keepdims=True) * self.config.LOSS_WEIGHTS.get(name, 1.))
+                calc_loss
             )
 
         # Add L2 Regularization
@@ -670,7 +675,7 @@ class MaskRCNN:
             use_early_stopping=True,
             augmentation=None,
             custom_callbacks=None,
-            no_augmentation_sources=None
+            use_clear_memory=False
     ):
         """Train the model.
         train_dataset, val_dataset: Training and validation Dataset objects.
@@ -729,22 +734,23 @@ class MaskRCNN:
         if not os.path.exists(self._log_dir):
             os.makedirs(self._log_dir)
 
-        early_stopping_callback = None
-        if use_early_stopping:
-            early_stopping_callback = tf.keras.callbacks.EarlyStopping(
-                monitor='val_loss',
-                patience=3
-            )
 
         # Callbacks
         callbacks = [
             keras.callbacks.TensorBoard(log_dir=self._log_dir,
                                         histogram_freq=0, write_graph=True, write_images=False),
             keras.callbacks.ModelCheckpoint(self._checkpoint_path,
-                                            verbose=0, save_weights_only=True),
-            ClearMemory(),
-            early_stopping_callback
+                                            verbose=0, save_weights_only=True)
         ]
+
+        if use_clear_memory:
+            callbacks.append(ClearMemory())
+
+        if use_early_stopping:
+            callbacks.append(tf.keras.callbacks.EarlyStopping(
+                monitor='val_loss',
+                patience=3
+            ))
 
         # Add custom callbacks to the list
         if custom_callbacks:

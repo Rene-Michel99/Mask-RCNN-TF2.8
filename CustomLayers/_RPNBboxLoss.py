@@ -26,19 +26,23 @@ class RPNBboxLoss(tf.keras.layers.Layer):
         rpn_match = tf.squeeze(inputs[1], -1)
         rpn_bbox = inputs[2]
 
-        indices = tf.where(tf.equal(rpn_match, 1))
+        # Positive anchors contribute to the loss, but negative and
+        # neutral anchors (match value of 0 or -1) don't.
+        indices = tf.where(K.equal(rpn_match, 1))
+
         # Pick bbox deltas that contribute to the loss
         rpn_bbox = tf.gather_nd(rpn_bbox, indices)
 
         # Trim target bounding box deltas to the same length as rpn_bbox.
-        batch_counts = K.sum(tf.cast(tf.equal(rpn_match, 1), tf.int32), axis=1)
-        target_bbox = batch_pack_graph(target_bbox, batch_counts,
-                                       self.images_per_gpu)
-
+        batch_counts = K.sum(K.cast(K.equal(rpn_match, 1), tf.int32), axis=1)
+        target_bbox = batch_pack_graph(
+            target_bbox, batch_counts,
+            self.images_per_gpu
+        )
         loss = smooth_l1_loss(target_bbox, rpn_bbox, name="RPNBboxLoss")
-        self.add_metric(loss, name="rpn_bbox_loss")
 
-        loss = K.switch(tf.size(loss) > 0, K.mean(loss), tf.constant(0.0))
+        loss = K.switch(tf.size(input=loss) > 0, K.mean(loss), tf.constant(0.0))
+        self.add_metric(tf.reduce_mean(loss) * 1., name="rpn_bbox_loss")
         return loss
 
     def get_config(self):

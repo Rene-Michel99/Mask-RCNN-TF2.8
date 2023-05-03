@@ -31,7 +31,7 @@ class RPNClassLoss(tf.keras.layers.Layer):
             output=rpn_class_logits,
             from_logits=True
         )
-        self.add_metric(loss, name="rpn_class_loss")
 
         loss = K.switch(tf.size(loss) > 0, K.mean(loss), tf.constant(0.0))
+        self.add_metric(tf.reduce_mean(loss) * 1., name="rpn_class_loss")
         return loss

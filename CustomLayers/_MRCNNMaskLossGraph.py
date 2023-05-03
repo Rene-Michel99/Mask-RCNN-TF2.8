@@ -40,11 +40,8 @@ class MRCNNMaskLossGraph(tf.keras.layers.Layer):
         y_true = tf.gather(target_masks, positive_ix)
         y_pred = tf.gather_nd(pred_masks, indices)
 
-        metric = tf.keras.metrics.binary_crossentropy(
-            y_true,
-            y_pred
-        )
-        self.add_metric(metric, name="mrcnn_mask_loss")
+        # Compute binary cross entropy. If no positive ROIs, then return 0.
+        # shape: [batch, roi, num_classes]
 
         loss = K.switch(
             tf.size(y_true) > 0,
@@ -52,7 +49,5 @@ class MRCNNMaskLossGraph(tf.keras.layers.Layer):
             tf.constant(0.0)
         )
         loss = K.mean(loss)
-
-        # Compute binary cross entropy. If no positive ROIs, then return 0.
-        # shape: [batch, roi, num_classes]
+        self.add_metric(tf.reduce_mean(loss) * 1., name="mrcnn_mask_loss")
         return loss

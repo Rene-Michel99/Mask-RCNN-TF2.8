@@ -3,6 +3,12 @@ from tensorflow.keras.models import Model
 
 
 class MaskRCNNModel(Model):
+
+    def same_rank_losses(self):
+        for i in range(len(self.losses)):
+            if self.losses[i].shape != tf.TensorShape([]):
+                self.losses[i] = tf.reshape(self.losses[i], [])
+
     def train_step(self, data):
         x, y = data
 

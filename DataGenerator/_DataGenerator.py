@@ -73,8 +73,7 @@ class DataGenerator(KU.Sequence):
     def __len__(self):
         return int(np.ceil(len(self.image_ids) / float(self.batch_size)))
 
-    @staticmethod
-    def _build_rpn_targets(image_shape, anchors, gt_class_ids, gt_boxes, config):
+    def _build_rpn_targets(self, image_shape, anchors, gt_class_ids, gt_boxes):
         """Given the anchors and GT boxes, compute overlaps and identify positive
         anchors and deltas to refine them to match their corresponding GT boxes.
 
@@ -89,7 +88,7 @@ class DataGenerator(KU.Sequence):
         """
         rpn_match = np.zeros([anchors.shape[0]], dtype=np.int32)
         # RPN bounding boxes: [max anchors per image, (dy, dx, log(dh), log(dw))]
-        rpn_bbox = np.zeros((config.RPN_TRAIN_ANCHORS_PER_IMAGE, 4))
+        rpn_bbox = np.zeros((self.config.RPN_TRAIN_ANCHORS_PER_IMAGE, 4))
 
         # Handle COCO crowds
         # A crowd box in COCO is a bounding box around several instances. Exclude
@@ -135,14 +134,14 @@ class DataGenerator(KU.Sequence):
         # Subsample to balance positive and negative anchors
         # Don't let positives be more than half the anchors
         ids = np.where(rpn_match == 1)[0]
-        extra = len(ids) - (config.RPN_TRAIN_ANCHORS_PER_IMAGE // 2)
+        extra = len(ids) - (self.config.RPN_TRAIN_ANCHORS_PER_IMAGE // 2)
         if extra > 0:
             # Reset the extra ones to neutral
             ids = np.random.choice(ids, extra, replace=False)
             rpn_match[ids] = 0
         # Same for negative proposals
         ids = np.where(rpn_match == -1)[0]
-        extra = len(ids) - (config.RPN_TRAIN_ANCHORS_PER_IMAGE -
+        extra = len(ids) - (self.config.RPN_TRAIN_ANCHORS_PER_IMAGE -
                             np.sum(rpn_match == 1))
         if extra > 0:
             # Rest the extra ones to neutral
@@ -178,7 +177,7 @@ class DataGenerator(KU.Sequence):
                 np.log(gt_w / a_w),
             ]
             # Normalize
-            rpn_bbox[ix] /= config.RPN_BBOX_STD_DEV
+            rpn_bbox[ix] /= self.config.RPN_BBOX_STD_DEV
             ix += 1
 
         return rpn_match, rpn_bbox
@@ -255,8 +254,7 @@ class DataGenerator(KU.Sequence):
         rois[-remaining_count:] = global_rois
         return rois
 
-    @staticmethod
-    def _build_detection_targets(rpn_rois, gt_class_ids, gt_boxes, gt_masks, config):
+    def _build_detection_targets(self, rpn_rois, gt_class_ids, gt_boxes, gt_masks):
         """Generate targets for training Stage 2 classifier and mask heads.
         This is not used in normal training. It's useful for debugging or to train
         the Mask RCNN heads without using the RPN head.
@@ -327,13 +325,13 @@ class DataGenerator(KU.Sequence):
 
         # Subsample ROIs. Aim for 33% foreground.
         # FG
-        fg_roi_count = int(config.TRAIN_ROIS_PER_IMAGE * config.ROI_POSITIVE_RATIO)
+        fg_roi_count = int(self.config.TRAIN_ROIS_PER_IMAGE * self.config.ROI_POSITIVE_RATIO)
         if fg_ids.shape[0] > fg_roi_count:
             keep_fg_ids = np.random.choice(fg_ids, fg_roi_count, replace=False)
         else:
             keep_fg_ids = fg_ids
         # BG
-        remaining = config.TRAIN_ROIS_PER_IMAGE - keep_fg_ids.shape[0]
+        remaining = self.config.TRAIN_ROIS_PER_IMAGE - keep_fg_ids.shape[0]
         if bg_ids.shape[0] > remaining:
             keep_bg_ids = np.random.choice(bg_ids, remaining, replace=False)
         else:
@@ -341,7 +339,7 @@ class DataGenerator(KU.Sequence):
         # Combine indices of ROIs to keep
         keep = np.concatenate([keep_fg_ids, keep_bg_ids])
         # Need more?
-        remaining = config.TRAIN_ROIS_PER_IMAGE - keep.shape[0]
+        remaining = self.config.TRAIN_ROIS_PER_IMAGE - keep.shape[0]
         if remaining > 0:
             # Looks like we don't have enough samples to maintain the desired
             # balance. Reduce requirements and fill in the rest. This is
@@ -360,9 +358,9 @@ class DataGenerator(KU.Sequence):
                 keep_extra_ids = np.random.choice(
                     keep_bg_ids, remaining, replace=True)
                 keep = np.concatenate([keep, keep_extra_ids])
-        assert keep.shape[0] == config.TRAIN_ROIS_PER_IMAGE, \
+        assert keep.shape[0] == self.config.TRAIN_ROIS_PER_IMAGE, \
             "keep doesn't match ROI batch size {}, {}".format(
-                keep.shape[0], config.TRAIN_ROIS_PER_IMAGE)
+                keep.shape[0], self.config.TRAIN_ROIS_PER_IMAGE)
 
         # Reset the gt boxes assigned to BG ROIs.
         rpn_roi_gt_boxes[keep_bg_ids, :] = 0
@@ -375,26 +373,30 @@ class DataGenerator(KU.Sequence):
         roi_gt_assignment = rpn_roi_iou_argmax[keep]
 
         # Class-aware bbox deltas. [y, x, log(h), log(w)]
-        bboxes = np.zeros((config.TRAIN_ROIS_PER_IMAGE,
-                           config.NUM_CLASSES, 4), dtype=np.float32)
+        bboxes = np.zeros((self.config.TRAIN_ROIS_PER_IMAGE,
+                           self.config.NUM_CLASSES, 4), dtype=np.float32)
         pos_ids = np.where(roi_gt_class_ids > 0)[0]
         bboxes[pos_ids, roi_gt_class_ids[pos_ids]] = box_refinement(
             rois[pos_ids], roi_gt_boxes[pos_ids, :4])
         # Normalize bbox refinements
-        bboxes /= config.BBOX_STD_DEV
+        bboxes /= self.config.BBOX_STD_DEV
 
         # Generate class-specific target masks
-        masks = np.zeros((config.TRAIN_ROIS_PER_IMAGE, config.MASK_SHAPE[0], config.MASK_SHAPE[1], config.NUM_CLASSES),
-                         dtype=np.float32)
+        masks = np.zeros(
+            (self.config.TRAIN_ROIS_PER_IMAGE,
+             self.config.MASK_SHAPE[0],
+             self.config.MASK_SHAPE[1],
+             self.config.NUM_CLASSES), dtype=np.float32
+        )
         for i in pos_ids:
             class_id = roi_gt_class_ids[i]
             assert class_id > 0, "class id must be greater than 0"
             gt_id = roi_gt_assignment[i]
             class_mask = gt_masks[:, :, gt_id]
 
-            if config.USE_MINI_MASK:
+            if self.config.USE_MINI_MASK:
                 # Create a mask placeholder, the size of the image
-                placeholder = np.zeros(config.IMAGE_SHAPE[:2], dtype=bool)
+                placeholder = np.zeros(self.config.IMAGE_SHAPE[:2], dtype=bool)
                 # GT box
                 gt_y1, gt_x1, gt_y2, gt_x2 = gt_boxes[gt_id]
                 gt_w = gt_x2 - gt_x1
@@ -408,18 +410,18 @@ class DataGenerator(KU.Sequence):
             # Pick part of the mask and resize it
             y1, x1, y2, x2 = rois[i].astype(np.int32)
             m = class_mask[y1:y2, x1:x2]
-            mask = resize(m, config.MASK_SHAPE)
+            mask = resize(m, self.config.MASK_SHAPE)
             masks[i, :, :, class_id] = mask
 
         return rois, roi_gt_class_ids, bboxes, masks
 
     @staticmethod
-    def mold_image(images, config):
+    def mold_image(images, mean_pixel):
         """Expects an RGB image (or array of images) and subtracts
         the mean pixel and converts it to float. Expects image
         colors in RGB order.
         """
-        return images.astype(np.float32) - config.MEAN_PIXEL
+        return images.astype(np.float32) - mean_pixel
 
     def __getitem__(self, idx):
         b = 0
@@ -445,9 +447,10 @@ class DataGenerator(KU.Sequence):
 
             # Get GT bounding boxes and masks for image.
             image_id = self.image_ids[image_index]
-            image, image_meta, gt_class_ids, gt_boxes, gt_masks = \
-                load_image_gt(self.dataset, self.config, image_id,
-                              augmentation=self.augmentation)
+            image, image_meta, gt_class_ids, gt_boxes, gt_masks = load_image_gt(
+                self.dataset, self.config, image_id, augmentation=self.augmentation,
+                use_mini_mask=self.config.USE_MINI_MASK
+            )
 
             # Skip images that have no instances. This can happen in cases
             # where we train on a subset of classes and the image doesn't
@@ -458,7 +461,7 @@ class DataGenerator(KU.Sequence):
             # RPN Targets
             rpn_match, rpn_bbox = self._build_rpn_targets(
                 image.shape, self.anchors,
-                gt_class_ids, gt_boxes, self.config
+                gt_class_ids, gt_boxes
             )
 
             # Mask R-CNN Targets
@@ -466,9 +469,9 @@ class DataGenerator(KU.Sequence):
                 rpn_rois = self.generate_random_rois(
                     image.shape, self.random_rois, gt_class_ids, gt_boxes)
                 if self.detection_targets:
-                    rois, mrcnn_class_ids, mrcnn_bbox, mrcnn_mask = \
-                        self._build_detection_targets(
-                            rpn_rois, gt_class_ids, gt_boxes, gt_masks, self.config)
+                    rois, mrcnn_class_ids, mrcnn_bbox, mrcnn_mask = self._build_detection_targets(
+                            rpn_rois, gt_class_ids, gt_boxes, gt_masks
+                    )
 
             # Init batch arrays
             if b == 0:
@@ -503,7 +506,9 @@ class DataGenerator(KU.Sequence):
             # If more instances than fits in the array, sub-sample from them.
             if gt_boxes.shape[0] > self.config.MAX_GT_INSTANCES:
                 ids = np.random.choice(
-                    np.arange(gt_boxes.shape[0]), self.config.MAX_GT_INSTANCES, replace=False)
+                    np.arange(gt_boxes.shape[0]),
+                    self.config.MAX_GT_INSTANCES, replace=False
+                )
                 gt_class_ids = gt_class_ids[ids]
                 gt_boxes = gt_boxes[ids]
                 gt_masks = gt_masks[:, :, ids]
@@ -512,7 +517,7 @@ class DataGenerator(KU.Sequence):
             batch_image_meta[b] = image_meta
             batch_rpn_match[b] = rpn_match[:, np.newaxis]
             batch_rpn_bbox[b] = rpn_bbox
-            batch_images[b] = self.mold_image(image.astype(np.float32), self.config)
+            batch_images[b] = self.mold_image(image.astype(np.float32), self.config.MEAN_PIXEL)
             batch_gt_class_ids[b, :gt_class_ids.shape[0]] = gt_class_ids
             batch_gt_boxes[b, :gt_boxes.shape[0]] = gt_boxes
             batch_gt_masks[b, :, :, :gt_masks.shape[-1]] = gt_masks
@@ -527,10 +532,6 @@ class DataGenerator(KU.Sequence):
 
         inputs = [batch_images, batch_image_meta, batch_rpn_match, batch_rpn_bbox,
                   batch_gt_class_ids, batch_gt_boxes, batch_gt_masks]
-
-        batch_mrcnn_class_ids = np.expand_dims(
-            batch_mrcnn_class_ids, -1
-        )
         outputs = []
 
         if self.random_rois:
