@@ -83,6 +83,7 @@ def trim_zeros_graph(boxes, name='trim_zeros'):
     return boxes, non_zeros
 
 
+@tf.function
 def batch_pack_graph(x, counts, num_rows):
     """Picks different number of values from each row
     in x depending on the values in counts.
@@ -93,6 +94,7 @@ def batch_pack_graph(x, counts, num_rows):
     return tf.concat(outputs, axis=0)
 
 
+@tf.function
 def denorm_boxes_graph(boxes, shape):
     """Converts boxes from normalized coordinates to pixel coordinates.
     boxes: [..., (y1, x1, y2, x2)] in normalized coordinates
@@ -105,17 +107,16 @@ def denorm_boxes_graph(boxes, shape):
         [..., (y1, x1, y2, x2)] in pixel coordinates
     """
     h, w = tf.split(tf.cast(shape, tf.float32), 2)
-    scale = tf.concat([h, w, h, w], axis=-1) - tf.constant(1.0)
+    scale = tf.concat([h, w, h, w], axis=-1, name="scale_denorm_boxes_graph") - tf.constant(1.0)
     shift = tf.constant([0., 0., 1., 1.])
-    return tf.cast(tf.round(tf.multiply(boxes, scale) + shift), tf.int32)
+    return tf.cast(tf.round(tf.multiply(boxes, scale, name="denorm_boxes_graph") + shift), tf.int32)
 
 
 ############################################################
 #  Data Generator
 ############################################################
 
-def load_image_gt(dataset, config, image_id, augment=False, augmentation=None,
-                  use_mini_mask=False):
+def load_image_gt(dataset, config, image_id, augmentation=None, use_mini_mask=False):
     """Load and return ground truth data for an image (image, mask, bounding boxes).
 
     augment: (deprecated. Use augmentation instead). If true, apply random
@@ -149,14 +150,6 @@ def load_image_gt(dataset, config, image_id, augment=False, augmentation=None,
         max_dim=config.IMAGE_MAX_DIM,
         mode=config.IMAGE_RESIZE_MODE)
     mask = resize_mask(mask, scale, padding, crop)
-
-    # Random horizontal flips.
-    # TODO: will be removed in a future update in favor of augmentation
-    if augment:
-        logging.warning("'augment' is deprecated. Use 'augmentation' instead.")
-        if random.randint(0, 1):
-            image = np.fliplr(image)
-            mask = np.fliplr(mask)
 
     # Augmentation
     # This requires the imgaug lib (https://github.com/aleju/imgaug)
@@ -215,4 +208,3 @@ def load_image_gt(dataset, config, image_id, augment=False, augmentation=None,
                                     window, scale, active_class_ids)
 
     return image, image_meta, class_ids, bbox, mask
-

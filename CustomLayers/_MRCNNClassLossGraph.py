@@ -5,6 +5,7 @@ class MRCNNClassLossGraph(tf.keras.layers.Layer):
     def __init__(self, *args, **kwargs):
         super(MRCNNClassLossGraph, self).__init__(**kwargs)
 
+    @tf.function
     def call(self, inputs):
         """Loss for the classifier head of Mask RCNN.
 
@@ -15,32 +16,32 @@ class MRCNNClassLossGraph(tf.keras.layers.Layer):
                 classes that are in the dataset of the image, and 0
                 for classes that are not in the dataset.
             """
-        target_class_ids = inputs[0]
         pred_class_logits = inputs[1]
         active_class_ids = inputs[2]
         # During model building, Keras calls this function with
         # target_class_ids of type float32. Unclear why. Cast it
         # to int to get around it.
-        target_class_ids = tf.cast(target_class_ids, tf.int64)
-
-        # Find predictions of classes that are not in the dataset.
+        target_class_ids = tf.cast(inputs[0], tf.int64)
         pred_class_ids = tf.argmax(pred_class_logits, axis=2)
-        # TODO: Update this line to work with batch > 1. Right now it assumes all
-        #       images in a batch have the same active_class_ids
-        pred_active = tf.gather(active_class_ids[0], pred_class_ids)
+        # Find predictions of classes that are not in the dataset.
+        # TODO: Make shape to fit batch size
+        #active_class_ids = tf.reshape(active_class_ids, (pred_class_ids.shape[0], -1))
+        pred_active = tf.gather(
+            active_class_ids[0],
+            pred_class_ids
+        )
 
         # Loss
         loss = tf.nn.sparse_softmax_cross_entropy_with_logits(
-            labels=target_class_ids, logits=pred_class_logits)
+            labels=target_class_ids, logits=pred_class_logits
+        )
+        loss = tf.reshape(loss, (loss.shape[0], -1, 1))
 
         # Erase losses of predictions of classes that are not in the active
         # classes of the image.
-        loss = loss * pred_active
-        self.add_metric(loss, name="mrcnn_class_loss")
-
         # Computer loss mean. Use only predictions that contribute
         # to the loss to get a correct mean.
-        loss = tf.reduce_sum(loss) / tf.reduce_sum(pred_active)
-        self.add_loss(tf.reduce_mean(loss, keepdims=True) * 1.)
+        loss = loss * pred_active
+        tf.reduce_sum(loss) / tf.reduce_sum(pred_active)
+        self.add_metric(tf.reduce_mean(loss) * 1., name="mrcnn_class_loss")
         return loss
-

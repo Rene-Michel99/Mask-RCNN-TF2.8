@@ -1,12 +1,13 @@
 import tensorflow as tf
 from tensorflow.keras import backend as K
-from resources.utils import smooth_l1_loss
+from ._Common import smooth_l1_loss
 
 
 class MRCNNBboxLossGraph(tf.keras.layers.Layer):
     def __init__(self, *args, **kwargs):
         super(MRCNNBboxLossGraph, self).__init__(**kwargs)
 
+    @tf.function
     def call(self, inputs):
         """Loss for Mask R-CNN bounding box refinement.
 
@@ -17,6 +18,7 @@ class MRCNNBboxLossGraph(tf.keras.layers.Layer):
         target_bbox = inputs[0]
         target_class_ids = inputs[1]
         pred_bbox = inputs[2]
+
         # Reshape to merge batch and roi dimensions for simplicity.
         target_class_ids = K.reshape(target_class_ids, (-1,))
         target_bbox = K.reshape(target_bbox, (-1, 4))
@@ -26,20 +28,21 @@ class MRCNNBboxLossGraph(tf.keras.layers.Layer):
         # the right class_id of each ROI. Get their indices.
         positive_roi_ix = tf.where(target_class_ids > 0)[:, 0]
         positive_roi_class_ids = tf.cast(
-            tf.gather(target_class_ids, positive_roi_ix), tf.int64)
+            tf.gather(target_class_ids, positive_roi_ix),
+            tf.int64
+        )
         indices = tf.stack([positive_roi_ix, positive_roi_class_ids], axis=1)
 
         # Gather the deltas (predicted and true) that contribute to loss
         target_bbox = tf.gather(target_bbox, positive_roi_ix)
         pred_bbox = tf.gather_nd(pred_bbox, indices)
 
-        metric = smooth_l1_loss(target_bbox, pred_bbox)
-        self.add_metric(metric, name="mrcnn_bbox_loss")
-
         # Smooth-L1 Loss
-        loss = K.switch(tf.size(target_bbox) > 0,
-                        smooth_l1_loss(y_true=target_bbox, y_pred=pred_bbox),
-                        tf.constant(0.0))
+        loss = K.switch(
+            tf.size(input=target_bbox) > 0,
+            smooth_l1_loss(y_true=target_bbox, y_pred=pred_bbox, name="MRCNNBboxLoss"),
+            tf.constant(0.0)
+        )
         loss = K.mean(loss)
-        self.add_loss(tf.reduce_mean(loss, keepdims=True) * 1.)
+        self.add_metric(tf.reduce_mean(loss) * 1., name="mrcnn_bbox_loss")
         return loss

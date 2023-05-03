@@ -1,4 +1,4 @@
-from .Common import *
+from ._Common import *
 from ._BatchNorm import BatchNorm
 from ._DetectionLayer import DetectionLayer
 from ._DetectionTargetLayer import DetectionTargetLayer
@@ -6,7 +6,6 @@ from ._GetAnchors import GetAnchors
 from ._NormBoxesGraph import NormBoxesGraph
 from ._ProposalLayer import ProposalLayer
 from ._PyramidROIAlign import PyramidROIAlign
-from ._RPNBBOXLoss import RPNBBOXLoss
 from ._RPNClassLoss import RPNClassLoss
 from ._MRCNNClassLossGraph import MRCNNClassLossGraph
 from ._RPNBboxLoss import RPNBboxLoss

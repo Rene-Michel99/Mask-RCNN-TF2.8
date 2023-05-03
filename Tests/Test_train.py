@@ -1,7 +1,7 @@
 import os
 import random
 
-from Custom_layers import *
+from CustomLayers import *
 from resources import utils, visualize
 from Configs.ShapesConfig import ShapesDataset, ShapesConfig
 from resources.Data_utils import load_image_gt
@@ -64,7 +64,7 @@ model = MaskRCNN(mode="inference",
 #model_path = model.find_last()
 
 # Load trained weights
-trained_model = os.path.join('./logs', 'train', 'mask_rcnn_shapes_0001.h5')
+trained_model = os.path.join('./logs', 'train', 'train', 'mask_rcnn_shapes_0001.h5')
 model.load_weights(trained_model, by_name=True)
 
 # Test on a random image

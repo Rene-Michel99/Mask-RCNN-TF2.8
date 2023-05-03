@@ -6,6 +6,7 @@ class GetAnchors(tf.keras.layers.Layer):
         super(GetAnchors, self).__init__(name=name, **kwargs)
         self.anchors = tf.Variable(anchors)
 
+    @tf.function
     def call(self, dummy):
         return self.anchors
 

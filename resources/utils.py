@@ -48,14 +48,6 @@ def log(text, array=None):
     print(text)
 
 
-def mold_image(images, config):
-    """Expects an RGB image (or array of images) and subtracts
-    the mean pixel and converts it to float. Expects image
-    colors in RGB order.
-    """
-    return images.astype(np.float32) - config.MEAN_PIXEL
-
-
 def compose_image_meta(image_id, original_image_shape, image_shape,
                        window, scale, active_class_ids):
     """Takes attributes of an image and puts them in one 1D array.
@@ -120,17 +112,6 @@ def parse_image_meta_graph(meta):
         "scale": scale,
         "active_class_ids": active_class_ids,
     }
-
-
-def smooth_l1_loss(y_true, y_pred):
-    """Implements Smooth-L1 loss.
-    y_tru
-    e and y_pred are typically: [N, 4], but could be any shape.
-    """
-    diff = tf.abs(y_true - y_pred)
-    less_than_one = tf.cast(tf.less(diff, 1.0), "float32")
-    loss = (less_than_one * (0.5 * diff ** 2)) + (1 - less_than_one) * (diff - 0.5)
-    return loss
 
 
 ############################################################
@@ -207,7 +188,6 @@ def compute_overlaps_masks(masks1, masks2):
     """Computes IoU overlaps between two sets of masks.
     masks1, masks2: [Height, Width, instances]
     """
-    
     # If either set of masks is empty return empty result
     if masks1.shape[-1] == 0 or masks2.shape[-1] == 0:
         return np.zeros((masks1.shape[-1], masks2.shape[-1]))
@@ -655,10 +635,10 @@ def unmold_mask(mask, bbox, image_shape):
     full_mask[y1:y2, x1:x2] = mask
     return full_mask
 
-
 ############################################################
 #  Anchors
 ############################################################
+
 
 def generate_anchors(scales, ratios, shape, feature_stride, anchor_stride):
     """
@@ -880,6 +860,7 @@ def compute_recall(pred_boxes, gt_boxes, iou):
 # an easy way to support batches > 1 quickly with little code modification.
 # In the long run, it's more efficient to modify the code to support large
 # batches and getting rid of this function. Consider this a temporary solution
+@tf.function
 def batch_slice(inputs, graph_fn, batch_size, names=None):
     """Splits inputs into slices and feeds each slice to a copy of the given
     computation graph and then combines the results. It allows you to run a
@@ -922,15 +903,14 @@ def download_trained_weights(coco_model_path=None, verbose=1):
 
     coco_model_path: local path of COCO trained weights
     """
-    if not os.path.exists('./logs') and not coco_model_path:
-        os.system("mkdir %s" % './logs')
+    if not coco_model_path:
+        coco_model_path = DEFAULT_COCO_WEIGHTS_PATH
+        if not os.path.exists('./logs'):
+            os.system("mkdir %s" % './logs')
 
-    if os.path.exists(DEFAULT_COCO_WEIGHTS_PATH):
+    if os.path.exists(coco_model_path):
         print("Using downloaded weights at %s" % DEFAULT_COCO_WEIGHTS_PATH)
         return
-    elif coco_model_path and not os.path.exists(coco_model_path):
-        raise ValueError("Could not find coco weights path at %s" % coco_model_path)
-    coco_model_path = coco_model_path if coco_model_path else DEFAULT_COCO_WEIGHTS_PATH
 
     if verbose > 0:
         print("Downloading pretrained model to " + coco_model_path + " ...")
@@ -988,11 +968,11 @@ def resize(image, output_shape, order=1, mode='constant', cval=0, clip=True,
         # compatibility with skimage 0.13.
         return skimage.transform.resize(
             image, output_shape,
-            order=order, mode=mode, cval=cval, clip=clip,
+            order=0, mode=mode, cval=cval, clip=clip,
             preserve_range=preserve_range, anti_aliasing=anti_aliasing,
             anti_aliasing_sigma=anti_aliasing_sigma)
     else:
         return skimage.transform.resize(
             image, output_shape,
-            order=order, mode=mode, cval=cval, clip=clip,
+            order=0, mode=mode, cval=cval, clip=clip,
             preserve_range=preserve_range)
