@@ -35,13 +35,13 @@ class MRCNNClassLossGraph(tf.keras.layers.Layer):
         loss = tf.nn.sparse_softmax_cross_entropy_with_logits(
             labels=target_class_ids, logits=pred_class_logits
         )
-        loss = tf.reshape(loss, (loss.shape[0], -1, 1))
+        #loss = tf.reshape(loss, (loss.shape[0], -1, 1))
 
         # Erase losses of predictions of classes that are not in the active
         # classes of the image.
         # Computer loss mean. Use only predictions that contribute
         # to the loss to get a correct mean.
         loss = loss * pred_active
-        tf.reduce_sum(loss) / tf.reduce_sum(pred_active)
+        loss = tf.reduce_sum(loss) / tf.reduce_sum(pred_active)
         self.add_metric(tf.reduce_mean(loss) * 1., name="mrcnn_class_loss")
         return loss
