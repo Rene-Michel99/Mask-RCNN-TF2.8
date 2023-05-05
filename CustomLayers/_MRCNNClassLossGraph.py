@@ -35,7 +35,6 @@ class MRCNNClassLossGraph(tf.keras.layers.Layer):
         loss = tf.nn.sparse_softmax_cross_entropy_with_logits(
             labels=target_class_ids, logits=pred_class_logits
         )
-        #loss = tf.reshape(loss, (loss.shape[0], -1, 1))
 
         # Erase losses of predictions of classes that are not in the active
         # classes of the image.
