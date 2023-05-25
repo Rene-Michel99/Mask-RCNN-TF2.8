@@ -49,35 +49,36 @@ def refine_detections_graph(rois, probs, deltas, window, config):
     # TODO: Filter out boxes with zero area
 
     # Filter out background boxes
-    keep = tf.compat.v1.where(class_ids > 0)[:, 0]
+    keep = tf.where(class_ids > 0)[:, 0]
     # Filter out low confidence boxes
     if config.DETECTION_MIN_CONFIDENCE:
-        conf_keep = tf.compat.v1.where(class_scores >= config.DETECTION_MIN_CONFIDENCE)[:, 0]
-        keep = tf.sets.intersection(tf.expand_dims(keep, 0), tf.expand_dims(conf_keep, 0))
+        conf_keep = tf.where(class_scores >= config.DETECTION_MIN_CONFIDENCE)[:, 0]
+        keep = tf.sets.intersection(tf.expand_dims(keep, 0),
+                                    tf.expand_dims(conf_keep, 0))
         keep = tf.sparse.to_dense(keep)[0]
 
     # Apply per-class NMS
     # 1. Prepare variables
     pre_nms_class_ids = tf.gather(class_ids, keep)
     pre_nms_scores = tf.gather(class_scores, keep)
-    pre_nms_rois = tf.gather(refined_rois,   keep)
+    pre_nms_rois = tf.gather(refined_rois, keep)
     unique_pre_nms_class_ids = tf.unique(pre_nms_class_ids)[0]
 
     def nms_keep_map(class_id):
         """Apply Non-Maximum Suppression on ROIs of the given class."""
         # Indices of ROIs of the given class
-        ixs = tf.compat.v1.where(tf.equal(pre_nms_class_ids, class_id))[:, 0]
+        ixs = tf.where(tf.equal(pre_nms_class_ids, class_id))[:, 0]
         # Apply NMS
         class_keep = tf.image.non_max_suppression(
-                tf.gather(pre_nms_rois, ixs),
-                tf.gather(pre_nms_scores, ixs),
-                max_output_size=config.DETECTION_MAX_INSTANCES,
-                iou_threshold=config.DETECTION_NMS_THRESHOLD)
+            tf.gather(pre_nms_rois, ixs),
+            tf.gather(pre_nms_scores, ixs),
+            max_output_size=config.DETECTION_MAX_INSTANCES,
+            iou_threshold=config.DETECTION_NMS_THRESHOLD)
         # Map indices
         class_keep = tf.gather(keep, tf.gather(ixs, class_keep))
         # Pad with -1 so returned tensors have the same shape
-        _gap = config.DETECTION_MAX_INSTANCES - tf.shape(input=class_keep)[0]
-        class_keep = tf.pad(tensor=class_keep, paddings=[(0, _gap)],
+        gap = config.DETECTION_MAX_INSTANCES - tf.shape(input=class_keep)[0]
+        class_keep = tf.pad(tensor=class_keep, paddings=[(0, gap)],
                             mode='CONSTANT', constant_values=-1)
         # Set shape so map_fn() can infer result shape
         class_keep.set_shape([config.DETECTION_MAX_INSTANCES])
@@ -88,7 +89,7 @@ def refine_detections_graph(rois, probs, deltas, window, config):
                          dtype=tf.int64)
     # 3. Merge results into one list, and remove -1 padding
     nms_keep = tf.reshape(nms_keep, [-1])
-    nms_keep = tf.gather(nms_keep, tf.compat.v1.where(nms_keep > -1)[:, 0])
+    nms_keep = tf.gather(nms_keep, tf.where(nms_keep > -1)[:, 0])
     # 4. Compute intersection between keep and nms_keep
     keep = tf.sets.intersection(tf.expand_dims(keep, 0), tf.expand_dims(nms_keep, 0))
     keep = tf.sparse.to_dense(keep)[0]
@@ -103,9 +104,9 @@ def refine_detections_graph(rois, probs, deltas, window, config):
     # Coordinates are normalized.
     detections = tf.concat([
         tf.gather(refined_rois, keep),
-        tf.cast(tf.gather(class_ids, keep), tf.float32)[..., tf.newaxis],
+        tf.dtypes.cast(tf.gather(class_ids, keep), tf.float32)[..., tf.newaxis],
         tf.gather(class_scores, keep)[..., tf.newaxis]
-        ], axis=1)
+    ], axis=1)
 
     # Pad with zeros if detections < DETECTION_MAX_INSTANCES
     gap = config.DETECTION_MAX_INSTANCES - tf.shape(input=detections)[0]

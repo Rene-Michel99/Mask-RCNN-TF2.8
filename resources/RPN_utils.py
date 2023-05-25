@@ -156,10 +156,7 @@ def build_fpn_mask_graph(rois, feature_maps, image_meta,
     """
     # ROI Pooling
     # Shape: [batch, num_rois, MASK_POOL_SIZE, MASK_POOL_SIZE, channels]
-    x = PyramidROIAlign( # noqa
-        [pool_size, pool_size], name="roi_align_mask"
-    )([rois, image_meta] + feature_maps)
-
+    x = PyramidROIAlign([pool_size, pool_size], name="roi_align_mask")([rois, image_meta] + feature_maps) # noqa
     # Conv layers
     x = KL.TimeDistributed(KL.Conv2D(256, (3, 3), padding="same"),
                            name="mrcnn_mask_conv1")(x)

@@ -12,6 +12,7 @@ import sys
 import random
 import itertools
 import colorsys
+import imutils
 
 import numpy as np
 import cv2 as cv
@@ -74,11 +75,25 @@ def apply_mask(image, mask, color, alpha=0.5):
     """Apply the given mask to the image.
     """
     for c in range(3):
-        image[:, :, c] = np.where(mask == 1,
+        image[:, :, c] = np.where(mask > 0,
                                   image[:, :, c] *
                                   (1 - alpha) + alpha * color[c] * 255,
                                   image[:, :, c])
     return image
+
+
+def uniform_mask(mask, eps=0.0101):
+    new_mask = np.zeros((mask.shape[0], mask.shape[1], 3), dtype=np.uint8)
+    mask = mask.astype(np.uint8)
+
+    cnts = cv.findContours(mask.copy(), cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE)
+    cnts = imutils.grab_contours(cnts)
+    c = max(cnts, key=cv.contourArea)
+
+    peri = cv.arcLength(c, True)
+    approx = cv.approxPolyDP(c, eps * peri, True)
+    cv.drawContours(new_mask, [approx], -1, (255, 255, 255), thickness=cv.FILLED)
+    return cv.cvtColor(new_mask, cv.COLOR_BGR2GRAY)
 
 
 def display_instances(image, boxes, masks, class_ids, class_names,
@@ -150,6 +165,7 @@ def display_instances(image, boxes, masks, class_ids, class_names,
 
         # Mask
         mask = masks[:, :, i]
+        mask = uniform_mask(mask)
         if show_mask:
             masked_image = apply_mask(masked_image, mask, color)
 

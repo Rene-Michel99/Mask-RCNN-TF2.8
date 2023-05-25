@@ -503,6 +503,7 @@ class MaskRCNN:
 
     def _get_optimizer(self, learning_rate, momentum):
         optimizer = self.config.OPTIMIZER
+        print("Using {} optimizer".format(optimizer))
         if optimizer == 'SGD':
             return keras.optimizers.SGD(
                 learning_rate=learning_rate,

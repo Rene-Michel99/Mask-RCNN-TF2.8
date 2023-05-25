@@ -5,3 +5,4 @@ numpy
 imgaug
 pycocotools
 Pillow==9.0.0
+imutils
