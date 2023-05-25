@@ -115,7 +115,7 @@ class DetectionTargetLayer(tf.keras.layers.Layer):
         gt_boxes, non_zeros = trim_zeros_graph(gt_boxes, name="trim_gt_boxes")
         gt_class_ids = tf.boolean_mask(tensor=gt_class_ids, mask=non_zeros,
                                        name="trim_gt_class_ids")
-        gt_masks = tf.gather(gt_masks, tf.compat.v1.where(non_zeros)[:, 0], axis=2,
+        gt_masks = tf.gather(gt_masks, tf.where(non_zeros)[:, 0], axis=2,
                              name="trim_gt_masks")
 
         # Handle COCO crowds
