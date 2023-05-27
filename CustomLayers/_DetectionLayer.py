@@ -22,9 +22,7 @@ class DetectionLayer(tf.keras.layers.Layer):
     coordinates are normalized.
     """
 
-    def __init__(
-            self, config, **kwargs
-    ):
+    def __init__(self, config, **kwargs):
         super(DetectionLayer, self).__init__(**kwargs)
         self.interface = Interface(config)
 
@@ -51,10 +49,8 @@ class DetectionLayer(tf.keras.layers.Layer):
         # Run detection refinement graph on each item in the batch
         detections_batch = self.batch_slice(
             [rois, mrcnn_class, mrcnn_bbox, window],
-            lambda x, y, w, z: self.refine_detections_graph(
-                x, y, w, z, self.interface
-            ), self.interface.IMAGES_PER_GPU
-        )
+            lambda x, y, w, z: self.refine_detections_graph(x, y, w, z, self.interface),
+            self.interface.IMAGES_PER_GPU)
 
         # Reshape output
         # [batch, num_detections, (y1, x1, y2, x2, class_id, class_score)] in

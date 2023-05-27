@@ -75,7 +75,6 @@ class CocoConfig(Config):
     to the COCO dataset.
     """
     # Give the configuration a recognizable name
-    MODE = "MASK"
     NAME = "coco"
 
     # We use a GPU with 12GB memory, which can fit two images.
