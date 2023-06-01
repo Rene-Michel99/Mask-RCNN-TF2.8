@@ -20,7 +20,7 @@ def denorm_box(box, w, h):
     """
 
     # Expanda as dimensões dos tensores scale e shift
-    scale = tf.convert_to_tensor([h, w, h, w], dtype=tf.float32)
+    scale = tf.convert_to_tensor([h - 1, w, h - 1, w], dtype=tf.float32)
     shift = tf.convert_to_tensor([0., 0., 1., 1.], dtype=tf.float32)
     box = tf.round(tf.multiply(box, scale) + shift)
     box = tf.convert_to_tensor([

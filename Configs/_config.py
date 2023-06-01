@@ -6,7 +6,7 @@ Copyright (c) 2017 Matterport, Inc.
 Licensed under the MIT License (see LICENSE for details)
 Written by Waleed Abdulla
 """
-
+from typing import Union, Callable
 import numpy as np
 
 
@@ -212,18 +212,36 @@ class Config(object):
     # Gradient norm clipping
     GRADIENT_CLIP_NORM = 5.0
 
-    def __init__(self):
+    def __init__(
+            self,
+            num_classes,             # type: int
+            name,                    # type: str
+            images_per_gpu=1,        # type: int
+            steps_per_epoch=100,     # type: int
+            validation_steps=5,      # type: int
+            backbone="resnet101",    # type: Union[str, Callable]
+    ):
         """Set values of computed attributes."""
+        # Set common values
+        self.NUM_CLASSES = 1 + num_classes
+        self.NAME = name
+        self.IMAGES_PER_GPU = images_per_gpu
+        self.STEPS_PER_EPOCH = steps_per_epoch
+        self.VALIDATION_STEPS = validation_steps
+        self.BACKBONE = backbone
+
         # Effective batch size
         self.BATCH_SIZE = self.IMAGES_PER_GPU * self.GPU_COUNT
 
         # Input image size
         if self.IMAGE_RESIZE_MODE == "crop":
-            self.IMAGE_SHAPE = np.array([self.IMAGE_MIN_DIM, self.IMAGE_MIN_DIM,
-                self.IMAGE_CHANNEL_COUNT])
+            self.IMAGE_SHAPE = np.array([
+                self.IMAGE_MIN_DIM, self.IMAGE_MIN_DIM, self.IMAGE_CHANNEL_COUNT
+            ])
         else:
-            self.IMAGE_SHAPE = np.array([self.IMAGE_MAX_DIM, self.IMAGE_MAX_DIM,
-                self.IMAGE_CHANNEL_COUNT])
+            self.IMAGE_SHAPE = np.array([
+                self.IMAGE_MAX_DIM, self.IMAGE_MAX_DIM, self.IMAGE_CHANNEL_COUNT
+            ])
 
         # Image meta data length
         # See compose_image_meta() for details
