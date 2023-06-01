@@ -1,11 +1,73 @@
 import tensorflow as tf
 
-from resources.utils import parse_image_meta_graph
+from Utils.utilfunctions import parse_image_meta_graph
 
 
 ############################################################
 #  ROIAlign Layer
 ############################################################
+def denorm_box(box, w, h):
+    """Converts box from normalized coordinates to pixel coordinates.
+    box: [(y1, x1, y2, x2)] in normalized coordinates
+    w: width in pixels
+    h: height in pixels
+
+    Note: In pixel coordinates (y2, x2) is outside the box. But in normalized
+    coordinates it's inside the box.
+
+    Returns:
+        [(y1, x1, y2, x2)] in pixel coordinates
+    """
+
+    # Expanda as dimensões dos tensores scale e shift
+    scale = tf.convert_to_tensor([h, w, h, w], dtype=tf.float32)
+    shift = tf.convert_to_tensor([0., 0., 1., 1.], dtype=tf.float32)
+    box = tf.round(tf.multiply(box, scale) + shift)
+    box = tf.convert_to_tensor([
+        box[0] if box[0] < box[2] else box[2],
+        box[1] if box[1] < box[3] else box[3],
+        box[2] if box[2] > box[0] else box[0],
+        box[3] if box[3] > box[1] else box[1]
+    ], dtype=tf.float32)
+
+    return box
+
+
+@tf.function
+def resize_and_crop(box_indices, level_boxes, feature_map, pool_shape):
+    """Implements crop and resize from tensorflow but with possibility to use
+        bicubic method.
+
+        Params:
+        - box_indices: [n] 1D Array of indices that
+        - level_boxes: [n, 4] 2D array of boxes
+        - feature_map: [batch, height, width, channels] Feature map from different
+          level of the feature pyramid
+        - pool_shape: [pool_height, pool_width] of the output pooled regions. Usually [7, 7]
+
+        Output:
+        Cropped and resized feature map: [n, num_boxes, pool_height, pool_width, channels].
+        The width and height are those specific in the pool_shape in the layer
+        constructor.
+    """
+    cropped_resized = tf.TensorArray(size=0, dynamic_size=True, dtype=tf.float32)
+
+    height = tf.shape(feature_map)[1]
+    width = tf.shape(feature_map)[2]
+    channel = tf.shape(feature_map)[-1]
+    for i in range(len(box_indices)):
+        box_ind = box_indices[i]
+        box = tf.cast(denorm_box(level_boxes[i], width, height), tf.int32)
+        cropped = feature_map[box_ind][box[0]:box[2], box[1]:box[3], :]
+        resized = tf.image.resize(cropped, pool_shape, method="bicubic")
+        cropped_resized = cropped_resized.write(i, resized)
+
+    return tf.reshape(
+        cropped_resized.stack(),
+        (len(box_indices), pool_shape[0], pool_shape[1], channel)
+    )
+
+
 class PyramidROIAlign(tf.keras.layers.Layer):
     """Implements ROI Pooling on multiple levels of the feature pyramid.
 
@@ -86,13 +148,17 @@ class PyramidROIAlign(tf.keras.layers.Layer):
             # which is how it's done in tf.crop_and_resize()
             # Result: [batch * num_boxes, pool_height, pool_width, channels]
             pooled.append(
-                tf.image.crop_and_resize(
-                    feature_maps[i], level_boxes,
-                    box_indices, self.pool_shape,
-                    method="bilinear"
-                )
+                resize_and_crop(box_indices, level_boxes, feature_maps[i], self.pool_shape)
             )
-
+            '''cropped_resized = tf.image.crop_and_resize(
+                image=feature_maps[i],
+                boxes=level_boxes,
+                box_indices=box_indices,
+                crop_size=self.pool_shape,
+                method="nearest",
+            )
+            #cropped_resized = tf.image.resize(cropped_resized, size=self.pool_shape, method="bicubic")
+            pooled.append(cropped_resized)'''
         # Pack pooled features into one tensor
         pooled = tf.concat(pooled, axis=0, name="concat_pooled_PyramidROIAlign")
 

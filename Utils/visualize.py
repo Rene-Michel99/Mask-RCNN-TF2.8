@@ -21,7 +21,7 @@ import matplotlib.pyplot as plt
 from matplotlib import patches,  lines
 from matplotlib.patches import Polygon
 import IPython.display
-from resources import utils
+from Utils import utilfunctions
 
 # Root directory of the project
 ROOT_DIR = os.path.abspath("../../")
@@ -165,7 +165,7 @@ def display_instances(image, boxes, masks, class_ids, class_names,
 
         # Mask
         mask = masks[:, :, i]
-        mask = uniform_mask(mask)
+        #mask = uniform_mask(mask)
         if show_mask:
             masked_image = apply_mask(masked_image, mask, color)
 

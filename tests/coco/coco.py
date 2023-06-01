@@ -48,20 +48,20 @@ import urllib.request
 import shutil
 
 # Root directory of the project
-ROOT_DIR = os.path.abspath("../")
+ROOT_DIR = os.path.abspath("../../")
 
 # Import Mask RCNN
 sys.path.append(ROOT_DIR)  # To find local version of the library
-from ._config import Config
+from Configs import Config
 import model as modellib
-from resources import utils
+from Dataset import Dataset
 
 # Path to trained weights file
 COCO_MODEL_PATH = os.path.join(ROOT_DIR, "mask_rcnn_coco.h5")
 
 # Directory to save logs and model checkpoints, if not provided
 # through the command line argument --logs
-DEFAULT_LOGS_DIR = os.path.join(ROOT_DIR, "../logs")
+DEFAULT_LOGS_DIR = os.path.join(ROOT_DIR, "logs")
 DEFAULT_DATASET_YEAR = "2014"
 
 ############################################################
@@ -76,7 +76,7 @@ class CocoConfig(Config):
     """
     # Give the configuration a recognizable name
     NAME = "coco"
-    MODE = "MASK"
+
     # We use a GPU with 12GB memory, which can fit two images.
     # Adjust down if you use a smaller GPU.
     IMAGES_PER_GPU = 2
@@ -92,7 +92,7 @@ class CocoConfig(Config):
 #  Dataset
 ############################################################
 
-class CocoDataset(utils.Dataset):
+class CocoDataset(Dataset):
     def load_coco(self, dataset_dir, subset, year=DEFAULT_DATASET_YEAR, class_ids=None,
                   class_map=None, return_coco=False, auto_download=False):
         """Load a subset of the COCO dataset.

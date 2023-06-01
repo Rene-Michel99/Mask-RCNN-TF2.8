@@ -1,6 +1,6 @@
 import tensorflow as tf
 from tensorflow.keras import backend as K
-from resources.Data_utils import batch_pack_graph
+from Utils.DataUtils import batch_pack_graph
 from ._Common import smooth_l1_loss
 
 

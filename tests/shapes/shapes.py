@@ -22,7 +22,7 @@ ROOT_DIR = os.path.abspath("../../")
 # Import Mask RCNN
 sys.path.append(ROOT_DIR)  # To find local version of the library
 from Configs import Config
-from resources import utils
+from Utils import utilfunctions
 
 
 class ShapesConfig(Config):

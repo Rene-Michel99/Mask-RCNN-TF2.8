@@ -1,5 +1,5 @@
 import tensorflow as tf
-from resources.utils import batch_slice
+from Utils.utilfunctions import batch_slice
 from ._Common import trim_zeros_graph, overlaps_graph
 
 

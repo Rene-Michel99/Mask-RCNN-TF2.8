@@ -1,8 +1,8 @@
 import tensorflow.keras.utils as KU
 import numpy as np
 
-from resources.Data_utils import load_image_gt
-from resources.utils import (
+from Utils.DataUtils import load_image_gt
+from Utils.utilfunctions import (
     compute_backbone_shapes,
     generate_pyramid_anchors,
     compute_overlaps,
@@ -14,7 +14,7 @@ from resources.utils import (
 
 class DataGenerator(KU.Sequence):
     """An iterable that returns images and corresponding target class ids,
-        bounding box deltas, and masks. It inherits from keras.utils.Sequence to avoid data redundancy
+        bounding box deltas, and masks. It inherits from keras.Utils.Sequence to avoid data redundancy
         when multiprocessing=True.
         dataset: The Dataset object to pick data from
         config: The model config object

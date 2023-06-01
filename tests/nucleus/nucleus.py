@@ -49,7 +49,7 @@ ROOT_DIR = os.path.abspath("../../")
 # Import Mask RCNN
 sys.path.append(ROOT_DIR)  # To find local version of the library
 from Configs import Config
-from resources import utils, visualize
+from Utils import utilfunctions, visualize
 import model as modellib
 
 # Path to trained weights file

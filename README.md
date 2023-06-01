@@ -23,27 +23,27 @@ The code is documented and designed to be easy to extend. If you use it in your 
 This dataset was created from 3D-reconstructed spaces captured by our customers who agreed to make them publicly available for academic use. You can see more examples [here](https://matterport.com/gallery/).
 
 # Getting Started
-* [demo.ipynb](Tests/demo.ipynb) Is the easiest way to start. It shows an example of using a model pre-trained on MS COCO to segment objects in your own images.
+* [demo.ipynb](tests/demo.ipynb) Is the easiest way to start. It shows an example of using a model pre-trained on MS COCO to segment objects in your own images.
 It includes code to run object detection and instance segmentation on arbitrary images.
 
-* [train_shapes.ipynb](Tests/shapes/train_shapes.ipynb) shows how to train Mask R-CNN on your own dataset. This notebook introduces a toy dataset (Shapes) to demonstrate training on a new dataset.
+* [train_shapes.ipynb](tests/shapes/train_shapes.ipynb) shows how to train Mask R-CNN on your own dataset. This notebook introduces a toy dataset (Shapes) to demonstrate training on a new dataset.
 
-* ([model.py](model.py), [utils.py](resources/utils.py), [config.py](Configs/config.py)): These files contain the main Mask RCNN implementation. 
+* ([model.py](model.py), [utils.py](Utils/utilfunctions.py), [config.py](Configs/config.py)): These files contain the main Mask RCNN implementation. 
 
 
-* [inspect_data.ipynb](Tests/coco/inspect_data.ipynb). This notebook visualizes the different pre-processing steps
+* [inspect_data.ipynb](tests/coco/inspect_data.ipynb). This notebook visualizes the different pre-processing steps
 to prepare the training data.
 
-* [inspect_model.ipynb](Tests/coco/inspect_model.ipynb) This notebook goes in depth into the steps performed to detect and segment objects. It provides visualizations of every step of the pipeline.
+* [inspect_model.ipynb](tests/coco/inspect_model.ipynb) This notebook goes in depth into the steps performed to detect and segment objects. It provides visualizations of every step of the pipeline.
 
-* [inspect_weights.ipynb](Tests/coco/inspect_weights.ipynb)
+* [inspect_weights.ipynb](tests/coco/inspect_weights.ipynb)
 This notebooks inspects the weights of a trained model and looks for anomalies and odd patterns.
 
 
 # Step by Step Detection
 To help with debugging and understanding the model, there are 3 notebooks 
-([inspect_data.ipynb](Tests/coco/inspect_data.ipynb), [inspect_model.ipynb](samples/coco/inspect_model.ipynb),
-[inspect_weights.ipynb](Tests/coco/inspect_weights.ipynb)) that provide a lot of visualizations and allow running the model step by step to inspect the output at each point. Here are a few examples:
+([inspect_data.ipynb](tests/coco/inspect_data.ipynb), [inspect_model.ipynb](samples/coco/inspect_model.ipynb),
+[inspect_weights.ipynb](tests/coco/inspect_weights.ipynb)) that provide a lot of visualizations and allow running the model step by step to inspect the output at each point. Here are a few examples:
 
 
 

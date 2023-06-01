@@ -2,7 +2,7 @@ import tensorflow as tf
 import tensorflow.keras.layers as KL
 import tensorflow.keras.models as KM
 from CustomLayers import BatchNorm
-from .RPN_utils import rpn_graph
+from .RpnUtils import rpn_graph
 
 
 # Code adopted from:

@@ -1,8 +1,6 @@
 import tensorflow as tf
 import numpy as np
-import random
-import logging
-from .utils import resize_image, resize_mask, minimize_mask, extract_bboxes
+from .utilfunctions import resize_image, resize_mask, minimize_mask, extract_bboxes
 
 
 def compose_image_meta(image_id, original_image_shape, image_shape,
