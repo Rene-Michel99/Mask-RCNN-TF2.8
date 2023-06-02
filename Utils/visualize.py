@@ -96,6 +96,12 @@ def uniform_mask(mask, eps=0.0101):
     return cv.cvtColor(new_mask, cv.COLOR_BGR2GRAY)
 
 
+def mask_suavization(mask, ksize=(13, 13), sigma_x=7):
+    mask = mask.astype(np.uint8)
+    suavizated_mask = cv.GaussianBlur(mask, ksize=ksize, sigmaX=sigma_x, sigmaY=sigma_x)
+    return suavizated_mask
+
+
 def display_instances(image, boxes, masks, class_ids, class_names,
                       scores=None, title="",
                       figsize=(16, 16), ax=None,
@@ -165,7 +171,7 @@ def display_instances(image, boxes, masks, class_ids, class_names,
 
         # Mask
         mask = masks[:, :, i]
-        #mask = uniform_mask(mask)
+        mask = mask_suavization(mask)
         if show_mask:
             masked_image = apply_mask(masked_image, mask, color)
 

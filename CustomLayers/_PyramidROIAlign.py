@@ -20,9 +20,9 @@ def denorm_box(box, w, h):
     """
 
     # Expanda as dimensões dos tensores scale e shift
-    scale = tf.convert_to_tensor([h - 1, w, h - 1, w], dtype=tf.float32)
+    scale = tf.convert_to_tensor([h, w, h, w], dtype=tf.float32)
     shift = tf.convert_to_tensor([0., 0., 1., 1.], dtype=tf.float32)
-    box = tf.round(tf.multiply(box, scale) + shift)
+    box = tf.round(tf.multiply(box, scale))
     box = tf.convert_to_tensor([
         box[0] if box[0] < box[2] else box[2],
         box[1] if box[1] < box[3] else box[3],
@@ -51,15 +51,20 @@ def resize_and_crop(box_indices, level_boxes, feature_map, pool_shape):
         constructor.
     """
     cropped_resized = tf.TensorArray(size=0, dynamic_size=True, dtype=tf.float32)
-
     height = tf.shape(feature_map)[1]
     width = tf.shape(feature_map)[2]
     channel = tf.shape(feature_map)[-1]
+    zeros = tf.zeros(shape=(pool_shape[0], pool_shape[1], channel), dtype=tf.float32)
     for i in range(len(box_indices)):
         box_ind = box_indices[i]
         box = tf.cast(denorm_box(level_boxes[i], width, height), tf.int32)
+        if tf.reduce_sum(box) == 0:
+            cropped_resized = cropped_resized.write(i, zeros)
+            continue
         cropped = feature_map[box_ind][box[0]:box[2], box[1]:box[3], :]
+        print(cropped.shape)
         resized = tf.image.resize(cropped, pool_shape, method="bicubic")
+        print(resized.shape)
         cropped_resized = cropped_resized.write(i, resized)
 
     return tf.reshape(
@@ -157,7 +162,6 @@ class PyramidROIAlign(tf.keras.layers.Layer):
                 crop_size=self.pool_shape,
                 method="nearest",
             )
-            #cropped_resized = tf.image.resize(cropped_resized, size=self.pool_shape, method="bicubic")
             pooled.append(cropped_resized)'''
         # Pack pooled features into one tensor
         pooled = tf.concat(pooled, axis=0, name="concat_pooled_PyramidROIAlign")
