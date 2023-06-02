@@ -82,7 +82,7 @@ def apply_mask(image, mask, color, alpha=0.5):
     return image
 
 
-def uniform_mask(mask, eps=0.0101):
+def mask_uniform(mask, eps=0.0101):
     new_mask = np.zeros((mask.shape[0], mask.shape[1], 3), dtype=np.uint8)
     mask = mask.astype(np.uint8)
 
