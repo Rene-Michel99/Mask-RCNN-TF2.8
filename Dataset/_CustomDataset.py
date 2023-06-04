@@ -124,7 +124,7 @@ class CustomDataset(Dataset):
         return class_number
 
 
-def load_images_dataset(annotation_path, dataset_path, dataset_type):
+def load_images_dataset(annotation_path: str, dataset_path: str, dataset_type: str):
     dataset_train = CustomDataset()
     dataset_train.load_custom(annotation_path, dataset_path, dataset_type)
     dataset_train.prepare()

@@ -80,9 +80,16 @@ def build_rpn_model(anchor_stride, anchors_per_location, depth):
 #  Feature Pyramid Network Heads
 ############################################################
 
-def fpn_classifier_graph(rois, feature_maps, image_meta,
-                         pool_size, num_classes, train_bn=True,
-                         fc_layers_size=1024):
+def fpn_classifier_graph(
+        rois,
+        feature_maps,
+        image_meta,
+        pool_size,
+        num_classes,
+        interpolation_method,
+        train_bn=True,
+        fc_layers_size=1024
+):
     """Builds the computation graph of the feature pyramid network classifier
     and regressor heads.
 
@@ -104,8 +111,11 @@ def fpn_classifier_graph(rois, feature_maps, image_meta,
     """
     # ROI Pooling
     # Shape: [batch, num_rois, POOL_SIZE, POOL_SIZE, channels]
-    x = PyramidROIAlign([pool_size, pool_size], # noqa
-                        name="roi_align_classifier")([rois, image_meta] + feature_maps)
+    x = PyramidROIAlign( # noqa
+        [pool_size, pool_size],
+        interpolation_method=interpolation_method,
+        name="roi_align_classifier"
+    )([rois, image_meta] + feature_maps)
     # Two 1024 FC layers (implemented with Conv2D for consistency)
     x = KL.TimeDistributed(KL.Conv2D(fc_layers_size, (pool_size, pool_size), padding="valid"),
                            name="mrcnn_class_conv1")(x)
@@ -138,8 +148,15 @@ def fpn_classifier_graph(rois, feature_maps, image_meta,
     return mrcnn_class_logits, mrcnn_probs, mrcnn_bbox
 
 
-def build_fpn_mask_graph(rois, feature_maps, image_meta,
-                         pool_size, num_classes, train_bn=True):
+def build_fpn_mask_graph(
+        rois,
+        feature_maps,
+        image_meta,
+        pool_size,
+        num_classes,
+        interpolation_method,
+        train_bn=True
+):
     """Builds the computation graph of the mask head of Feature Pyramid Network.
 
     rois: [batch, num_rois, (y1, x1, y2, x2)] Proposal boxes in normalized
@@ -155,8 +172,11 @@ def build_fpn_mask_graph(rois, feature_maps, image_meta,
     """
     # ROI Pooling
     # Shape: [batch, num_rois, MASK_POOL_SIZE, MASK_POOL_SIZE, channels]
-    x = PyramidROIAlign([pool_size, pool_size], # noqa
-                        name="roi_align_mask")([rois, image_meta] + feature_maps)
+    x = PyramidROIAlign( # noqa
+        [pool_size, pool_size],
+        interpolation_method=interpolation_method,
+        name="roi_align_mask"
+    )([rois, image_meta] + feature_maps)
 
     # Conv layers
     x = KL.TimeDistributed(KL.Conv2D(256, (3, 3), padding="same"),

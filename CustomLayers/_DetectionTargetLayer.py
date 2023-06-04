@@ -1,6 +1,6 @@
 import tensorflow as tf
 from Utils.utilfunctions import batch_slice
-from ._Common import trim_zeros_graph, overlaps_graph
+from ._Common import trim_zeros_graph, overlaps_graph, resize_and_crop
 
 
 class Interface:
@@ -11,6 +11,7 @@ class Interface:
         self.ROI_POSITIVE_RATIO = config.ROI_POSITIVE_RATIO
         self.BBOX_STD_DEV = config.BBOX_STD_DEV
         self.USE_MINI_MASK = config.USE_MINI_MASK
+        self.INTERPOLATION_METHOD = config.INTERPOLATION_METHOD
 
     def to_dict(self):
         return {a: getattr(self, a)
@@ -193,9 +194,21 @@ class DetectionTargetLayer(tf.keras.layers.Layer):
             x2 = (x2 - gt_x1) / gt_w
             boxes = tf.concat([y1, x1, y2, x2], 1)
         box_ids = tf.range(0, tf.shape(input=roi_masks)[0])
-        masks = tf.image.crop_and_resize(tf.cast(roi_masks, tf.float32), boxes,
-                                         box_ids,
-                                         self.interface.MASK_SHAPE)
+
+        if self.interface.INTERPOLATION_METHOD == "bicubic":
+            masks = resize_and_crop(
+                feature_map=tf.cast(roi_masks, tf.float32),
+                level_boxes=boxes,
+                box_indices=box_ids,
+                pool_shape=self.interface.MASK_SHAPE,
+                method=self.interface.INTERPOLATION_METHOD
+            )
+        else:
+            masks = tf.image.crop_and_resize(
+                tf.cast(roi_masks, tf.float32), boxes,
+                box_ids, self.interface.MASK_SHAPE
+            )
+
         # Remove the extra dimension from masks.
         masks = tf.squeeze(masks, axis=3)
 

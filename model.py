@@ -6,6 +6,7 @@ import tensorflow.keras as keras
 import tensorflow.keras.backend as K
 import tensorflow.keras.layers as KL
 
+from Configs import Config
 from Utils import utilfunctions
 from Utils.ResnetUtils import resnet_graph
 from Utils.DataUtils import *
@@ -38,7 +39,7 @@ class MaskRCNN:
     The actual Keras model is in the keras_model property.
     """
 
-    def __init__(self, mode, config, model_dir='./logs'):
+    def __init__(self, mode: str, config: Config, model_dir='./logs'):
         """
         mode: Either "training" or "inference"
         config: A Sub-class of the Config class
@@ -54,6 +55,19 @@ class MaskRCNN:
         self.epoch = 0
         self._anchor_cache = {}
         self.is_compiled = False
+        self.keras_model = self.build(mode=mode, config=config)
+
+    def rebuild_as(self, mode: str, config: Config = None):
+        assert mode in ['training', 'inference']
+        self.mode = mode
+        self.epoch = 0
+        self._anchor_cache.clear()
+        self.is_compiled = False
+
+        tf.keras.backend.clear_session()
+        del self.keras_model
+
+        config = config if config is not None else self.config
         self.keras_model = self.build(mode=mode, config=config)
 
     @staticmethod
@@ -76,15 +90,15 @@ class MaskRCNN:
         p5 = KL.Conv2D(config.TOP_DOWN_PYRAMID_SIZE, (1, 1), name='fpn_c5p5')(c5)
         size = (2, 2) if config.BACKBONE == "resnet101V2" else (2, 2)
         p4 = KL.Add(name="fpn_p4add")([
-            KL.UpSampling2D(size=size, name="fpn_p5upsampled", interpolation="bicubic")(p5),
+            KL.UpSampling2D(size=size, name="fpn_p5upsampled", interpolation=config.INTERPOLATION_METHOD)(p5),
             KL.Conv2D(config.TOP_DOWN_PYRAMID_SIZE, (1, 1), name='fpn_c4p4')(c4)
         ])
         p3 = KL.Add(name="fpn_p3add")([
-            KL.UpSampling2D(size=(2, 2), name="fpn_p4upsampled", interpolation="bicubic")(p4),
+            KL.UpSampling2D(size=(2, 2), name="fpn_p4upsampled", interpolation=config.INTERPOLATION_METHOD)(p4),
             KL.Conv2D(config.TOP_DOWN_PYRAMID_SIZE, (1, 1), name='fpn_c3p3')(c3)
         ])
         p2 = KL.Add(name="fpn_p2add")([
-            KL.UpSampling2D(size=(2, 2), name="fpn_p3upsampled", interpolation="bicubic")(p3),
+            KL.UpSampling2D(size=(2, 2), name="fpn_p3upsampled", interpolation=config.INTERPOLATION_METHOD)(p3),
             KL.Conv2D(config.TOP_DOWN_PYRAMID_SIZE, (1, 1), name='fpn_c2p2')(c2)
         ])
         # Attach 3x3 conv to all P layers to get the final feature maps.
@@ -235,8 +249,9 @@ class MaskRCNN:
         mrcnn_class_logits, mrcnn_class, mrcnn_bbox = fpn_classifier_graph(
             rois, mrcnn_feature_maps, input_image_meta,
             config.POOL_SIZE, config.NUM_CLASSES,
+            config.INTERPOLATION_METHOD,
             train_bn=config.TRAIN_BN,
-            fc_layers_size=config.FPN_CLASSIF_FC_LAYERS_SIZE
+            fc_layers_size=config.FPN_CLASSIFIER_FC_LAYERS_SIZE
         )
 
         mrcnn_mask = build_fpn_mask_graph(
@@ -244,6 +259,7 @@ class MaskRCNN:
             input_image_meta,
             config.MASK_POOL_SIZE,
             config.NUM_CLASSES,
+            config.INTERPOLATION_METHOD,
             train_bn=config.TRAIN_BN
         )
 
@@ -310,8 +326,9 @@ class MaskRCNN:
         mrcnn_class_logits, mrcnn_class, mrcnn_bbox = fpn_classifier_graph(
             rpn_rois, mrcnn_feature_maps, input_image_meta,
             config.POOL_SIZE, config.NUM_CLASSES,
+            config.INTERPOLATION_METHOD,
             train_bn=config.TRAIN_BN,
-            fc_layers_size=config.FPN_CLASSIF_FC_LAYERS_SIZE
+            fc_layers_size=config.FPN_CLASSIFIER_FC_LAYERS_SIZE
         )
 
         # Detections
@@ -329,6 +346,7 @@ class MaskRCNN:
             input_image_meta,
             config.MASK_POOL_SIZE,
             config.NUM_CLASSES,
+            config.INTERPOLATION_METHOD,
             train_bn=config.TRAIN_BN
         )
         return MaskRCNNModel(
@@ -338,7 +356,7 @@ class MaskRCNN:
             name='mask_rcnn'
         )
 
-    def build(self, mode, config):
+    def build(self, mode: str, config: Config) -> MaskRCNNModel:
         """Build Mask R-CNN architecture.
             input_shape: The shape of the input image.
             mode: Either "training" or "inference". The inputs and

@@ -1,3 +1,4 @@
+from typing import List, Tuple
 import tensorflow as tf
 import numpy as np
 
@@ -216,3 +217,77 @@ def smooth_l1_loss(y_true, y_pred, name=""):
     less_than_one = tf.cast(tf.less(diff, 1.0), tf.float32)
     loss = (less_than_one * (0.5 * (diff ** 2))) + (1 - less_than_one) * (diff - 0.5)
     return loss
+
+
+@tf.function
+def denorm_box(box, w, h):
+    """Converts box from normalized coordinates to pixel coordinates.
+    box: [(y1, x1, y2, x2)] in normalized coordinates
+    w: width in pixels
+    h: height in pixels
+
+    Note: In pixel coordinates (y2, x2) is outside the box. But in normalized
+    coordinates it's inside the box.
+
+    Returns:
+        [(y1, x1, y2, x2)] in pixel coordinates
+    """
+
+    scale = tf.convert_to_tensor([h, w, h, w], dtype=tf.float32)
+    box = tf.round(tf.multiply(box, scale))
+    box = tf.convert_to_tensor([
+        box[0] if box[0] < box[2] else box[2],
+        box[1] if box[1] < box[3] else box[3],
+        box[2] if box[2] > box[0] else box[0],
+        box[3] if box[3] > box[1] else box[1]
+    ], dtype=tf.float32)
+
+    return box
+
+
+@tf.function
+def resize_and_crop(
+        box_indices: List[int],
+        level_boxes: tf.Tensor,
+        feature_map: tf.Tensor,
+        pool_shape: Tuple[int, int],
+        method: str = "bicubic"
+):
+    """Implements crop and resize from tensorflow but with possibility to use
+        bicubic method.
+
+        Params:
+        - box_indices: [n] 1D Array of indices of feature map
+        - level_boxes: [n, 4] 2D array of boxes
+        - feature_map: [batch, height, width, channels] Feature map from different
+          level of the feature pyramid
+        - pool_shape: [pool_height, pool_width] of the output pooled regions. Usually [7, 7]
+
+        Output:
+        Cropped and resized feature map: [n, num_boxes, pool_height, pool_width, channels].
+        The width and height are those specific in the pool_shape in the layer
+        constructor.
+    """
+    cropped_resized = tf.TensorArray(size=0, dynamic_size=True, dtype=tf.float32)
+    height = tf.shape(feature_map)[1]
+    width = tf.shape(feature_map)[2]
+    channel = tf.shape(feature_map)[-1]
+    zeros = tf.zeros(shape=(pool_shape[0], pool_shape[1], channel), dtype=tf.float32)
+    for i in range(len(box_indices)):
+        box_ind = box_indices[i]
+        box = tf.cast(denorm_box(level_boxes[i], width, height), tf.int32)
+        if tf.reduce_sum(box) <= 0:
+            cropped_resized = cropped_resized.write(i, zeros)
+            continue
+        cropped = feature_map[box_ind][box[0]:box[2], box[1]:box[3], :]
+        cropped_shape = tf.shape(cropped)
+        if cropped_shape[0] > 0 and cropped_shape[1] > 0:
+            resized = tf.image.resize(cropped, pool_shape, method=method)
+            cropped_resized = cropped_resized.write(i, resized)
+        else:
+            cropped_resized = cropped_resized.write(i, zeros)
+
+    return tf.reshape(
+        cropped_resized.stack(),
+        (len(box_indices), pool_shape[0], pool_shape[1], channel)
+    )
