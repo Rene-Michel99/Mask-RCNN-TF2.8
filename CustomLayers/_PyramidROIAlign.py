@@ -1,3 +1,4 @@
+import sys
 import tensorflow as tf
 
 from ._Common import resize_and_crop
@@ -8,6 +9,10 @@ from Utils.utilfunctions import parse_image_meta_graph
 ############################################################
 #  ROIAlign Layer
 ############################################################
+class PyramidInterface(Interface):
+    def __init__(self, pool_shape, interpolation_method):
+        self.POOL_SHAPE = pool_shape
+        self.INTERPOLATION_METHOD = interpolation_method
 
 
 class PyramidROIAlign(tf.keras.layers.Layer):
@@ -32,8 +37,7 @@ class PyramidROIAlign(tf.keras.layers.Layer):
 
     def __init__(self, pool_shape, interpolation_method, **kwargs):
         super(PyramidROIAlign, self).__init__(**kwargs)
-        self.pool_shape = tuple(pool_shape)
-        self.interpolation_method = interpolation_method
+        self.interface = PyramidInterface(tuple(pool_shape), interpolation_method)
 
     @tf.function
     def call(self, inputs):
@@ -90,22 +94,23 @@ class PyramidROIAlign(tf.keras.layers.Layer):
             # Here we use the simplified approach of a single value per bin,
             # which is how it's done in tf.crop_and_resize()
             # Result: [batch * num_boxes, pool_height, pool_width, channels]
-            if self.interpolation_method == "bicubic":
+            if self.interface.INTERPOLATION_METHOD == "bicubic":
                 resized_cropped = resize_and_crop(
                     box_indices,
                     level_boxes,
                     feature_maps[i],
-                    self.pool_shape,
-                    method=self.interpolation_method
+                    self.interface.POOL_SHAPE,
+                    method=self.interface.INTERPOLATION_METHOD
                 )
             else:
                 resized_cropped = tf.image.crop_and_resize(
                     image=feature_maps[i],
                     boxes=level_boxes,
                     box_indices=box_indices,
-                    crop_size=self.pool_shape,
-                    method="nearest",
+                    crop_size=self.interface.POOL_SHAPE,
+                    method=self.interface.INTERPOLATION_METHOD
                 )
+            #tf.print('Pyramid layer:', resized_cropped.shape, output_stream=sys.stdout)
             pooled.append(resized_cropped)
         # Pack pooled features into one tensor
         pooled = tf.concat(pooled, axis=0, name="concat_pooled_PyramidROIAlign")
@@ -142,6 +147,6 @@ class PyramidROIAlign(tf.keras.layers.Layer):
     def get_config(self):
         config = super().get_config()
         config.update({
-            "pool_shape": self.pool_shape,
+            "interface": self.interface.to_dict(),
         })
         return config

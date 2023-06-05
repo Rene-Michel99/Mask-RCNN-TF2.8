@@ -248,8 +248,8 @@ def denorm_box(box, w, h):
 @tf.function
 def resize_and_crop(
         box_indices: List[int],
-        level_boxes: tf.Tensor,
-        feature_map: tf.Tensor,
+        boxes: tf.Tensor,
+        img: tf.Tensor,
         pool_shape: Tuple[int, int],
         method: str = "bicubic"
 ):
@@ -258,28 +258,24 @@ def resize_and_crop(
 
         Params:
         - box_indices: [n] 1D Array of indices of feature map
-        - level_boxes: [n, 4] 2D array of boxes
-        - feature_map: [batch, height, width, channels] Feature map from different
-          level of the feature pyramid
+        - oxes: [n, 4] 2D array of boxes
+        - img: [batch, height, width, channels] An image
         - pool_shape: [pool_height, pool_width] of the output pooled regions. Usually [7, 7]
 
         Output:
-        Cropped and resized feature map: [n, num_boxes, pool_height, pool_width, channels].
+        Cropped and resized img: [n, num_boxes, pool_height, pool_width, channels].
         The width and height are those specific in the pool_shape in the layer
         constructor.
     """
-    cropped_resized = tf.TensorArray(size=0, dynamic_size=True, dtype=tf.float32)
-    height = tf.shape(feature_map)[1]
-    width = tf.shape(feature_map)[2]
-    channel = tf.shape(feature_map)[-1]
+    cropped_resized = tf.TensorArray(size=len(box_indices), dtype=tf.float32)
+    height = tf.shape(img)[1]
+    width = tf.shape(img)[2]
+    channel = tf.shape(img)[-1]
     zeros = tf.zeros(shape=(pool_shape[0], pool_shape[1], channel), dtype=tf.float32)
     for i in range(len(box_indices)):
         box_ind = box_indices[i]
-        box = tf.cast(denorm_box(level_boxes[i], width, height), tf.int32)
-        if tf.reduce_sum(box) <= 0:
-            cropped_resized = cropped_resized.write(i, zeros)
-            continue
-        cropped = feature_map[box_ind][box[0]:box[2], box[1]:box[3], :]
+        box = tf.cast(denorm_box(boxes[i], width, height), tf.int32)
+        cropped = img[box_ind][box[0]:box[2], box[1]:box[3], :]
         cropped_shape = tf.shape(cropped)
         if cropped_shape[0] > 0 and cropped_shape[1] > 0:
             resized = tf.image.resize(cropped, pool_shape, method=method)
@@ -287,7 +283,9 @@ def resize_and_crop(
         else:
             cropped_resized = cropped_resized.write(i, zeros)
 
-    return tf.reshape(
+    pooled = tf.reshape(
         cropped_resized.stack(),
         (len(box_indices), pool_shape[0], pool_shape[1], channel)
     )
+    cropped_resized.close()
+    return pooled

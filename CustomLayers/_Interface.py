@@ -1,5 +1,5 @@
 class Interface(object):
-    def __int__(self, config):
+    def __int__(self, *args):
         raise NotImplementedError
 
     def to_dict(self):

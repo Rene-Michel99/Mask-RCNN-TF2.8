@@ -424,7 +424,7 @@ class MaskRCNN:
     def load_weights(
             self,
             init_with='',
-            filepath='',
+            filepath=None,
             by_name=False
     ):
         """Modified version of the corresponding Keras function with
@@ -444,6 +444,7 @@ class MaskRCNN:
                 # Load weights trained on MS COCO, but skip layers that
                 # are different due to the different number of classes
                 # See README for instructions to download the COCO weights
+                utilfunctions.download_trained_weights(filepath)
                 filepath = './logs/mask_rcnn_coco.h5'
             elif init_with == "last":
                 # Load the last model you trained and continue training
@@ -723,7 +724,8 @@ class MaskRCNN:
             use_early_stopping=True,
             augmentation=None,
             custom_callbacks=None,
-            use_clear_memory=False
+            use_clear_memory=False,
+            debug=False,
     ):
         """Train the model.
         train_dataset, val_dataset: Training and validation Dataset objects.
@@ -818,6 +820,12 @@ class MaskRCNN:
         else:
             workers = multiprocessing.cpu_count()
 
+        if debug:
+            tf.config.set_soft_device_placement(True)
+            tf.debugging.experimental.enable_dump_debug_info(
+                self._log_dir + '/train-ops-logs',
+                tensor_debug_mode="FULL_HEALTH"
+            )
         history = self.keras_model.fit(
             train_generator,
             epochs=epochs,
