@@ -18,6 +18,13 @@ from distutils.version import LooseVersion
 # URL from which to download the latest COCO trained weights
 COCO_MODEL_URL = "https://github.com/matterport/Mask_RCNN/releases/download/v2.0/mask_rcnn_coco.h5"
 DEFAULT_COCO_WEIGHTS_PATH = "./logs/mask_rcnn_coco.h5"
+INTERPOLATION_METHODS = {
+    "bicubic": cv.INTER_CUBIC,
+    "bilinear": cv.INTER_LINEAR,
+    "nearest": cv.INTER_NEAREST,
+    "area": cv.INTER_AREA,
+    "lanczos4": cv.INTER_LANCZOS4
+}
 
 
 ############################################################
@@ -412,7 +419,7 @@ def resize_mask(mask, scale, padding, crop=None):
     return mask
 
 
-def minimize_mask(bbox, mask, mini_shape):
+def minimize_mask(bbox, mask, mini_shape, interpolation_method='bilinear'):
     """Resize masks to a smaller version to reduce memory load.
     Mini-masks can be resized back to image scale using expand_masks()
 
@@ -427,7 +434,7 @@ def minimize_mask(bbox, mask, mini_shape):
         if m.size == 0:
             raise Exception("Invalid bounding box with area of zero")
         # Resize with bilinear interpolation
-        m = resize(m, mini_shape)
+        m = resize(m, mini_shape, interpolation_method=interpolation_method)
         mini_mask[:, :, i] = np.around(m).astype(bool)
     return mini_mask
 
@@ -792,7 +799,12 @@ def denorm_boxes(boxes, shape):
     return np.around(np.multiply(boxes, scale) + shift).astype(np.int32)
 
 
-def resize(image, output_shape):
+def _parse_interpolation_method(interpolation_method: str):
+    assert interpolation_method in INTERPOLATION_METHODS.keys()
+    return INTERPOLATION_METHODS.get(interpolation_method)
+
+
+def resize(image, output_shape, interpolation_method: str = "bicubic"):
     """A wrapper for Scikit-Image resize().
 
     Scikit-Image generates warnings on every call to resize() if it doesn't
@@ -801,6 +813,10 @@ def resize(image, output_shape):
     version. And it provides a central place to control resizing defaults.
     """
     dtype_input = image.dtype
+    interpolation_method = _parse_interpolation_method(interpolation_method)
     if dtype_input != np.uint8:
-        return cv.resize(image.astype(np.uint8), output_shape[::-1], cv.INTER_CUBIC).astype(dtype_input)
-    return cv.resize(image, output_shape[::-1], cv.INTER_CUBIC)
+        return cv.resize(
+            image.astype(np.uint8), output_shape[::-1],
+            interpolation_method
+        ).astype(dtype_input)
+    return cv.resize(image, output_shape[::-1], interpolation_method)
