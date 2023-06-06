@@ -1,9 +1,10 @@
 import tensorflow as tf
+from ._Interface import Interface
 from ._Common import norm_boxes_graph, refine_detections_graph
 from src.Utils.utilfunctions import batch_slice, parse_image_meta_graph
 
 
-class Interface:
+class DetectionInterface(Interface):
     def __init__(self, config):
         self.BBOX_STD_DEV = config.BBOX_STD_DEV
         self.DETECTION_MIN_CONFIDENCE = config.DETECTION_MIN_CONFIDENCE
@@ -24,7 +25,7 @@ class DetectionLayer(tf.keras.layers.Layer):
 
     def __init__(self, config, **kwargs):
         super(DetectionLayer, self).__init__(**kwargs)
-        self.interface = Interface(config)
+        self.interface = DetectionInterface(config)
 
         self.refine_detections_graph = refine_detections_graph
         self.norm_boxes_graph = norm_boxes_graph
@@ -59,6 +60,13 @@ class DetectionLayer(tf.keras.layers.Layer):
             detections_batch,
             [self.interface.BATCH_SIZE, self.interface.DETECTION_MAX_INSTANCES, 6]
         )
+
+    def get_config(self):
+        config = super().get_config()
+        config.update({
+            "interface": self.interface.to_dict(),
+        })
+        return config
 
     def compute_output_shape(self, input_shape):
         return (None, self.interface.DETECTION_MAX_INSTANCES, 6)
