@@ -793,8 +793,7 @@ def denorm_boxes(boxes, shape):
     return np.around(np.multiply(boxes, scale) + shift).astype(np.int32)
 
 
-def resize(image, output_shape, order=1, mode='constant', cval=0, clip=True,
-           preserve_range=False, anti_aliasing=False, anti_aliasing_sigma=None):
+def resize(image, output_shape):
     """A wrapper for Scikit-Image resize().
 
     Scikit-Image generates warnings on every call to resize() if it doesn't
@@ -802,4 +801,7 @@ def resize(image, output_shape, order=1, mode='constant', cval=0, clip=True,
     of skimage. This solves the problem by using different parameters per
     version. And it provides a central place to control resizing defaults.
     """
+    dtype_input = image.dtype
+    if dtype_input != np.uint8:
+        return cv.resize(image.astype(np.uint8), output_shape[::-1], cv.INTER_CUBIC).astype(dtype_input)
     return cv.resize(image, output_shape[::-1], cv.INTER_CUBIC)
