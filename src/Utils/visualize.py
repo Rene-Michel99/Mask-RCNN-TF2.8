@@ -12,10 +12,9 @@ import matplotlib.pyplot as plt
 from matplotlib import patches,  lines
 from matplotlib.patches import Polygon
 import IPython.display
-from Utils import utilfunctions
 
 # Root directory of the project
-ROOT_DIR = os.path.abspath("../../")
+ROOT_DIR = os.path.abspath("../../../")
 
 # Import Mask RCNN
 sys.path.append(ROOT_DIR)  # To find local version of the library
@@ -149,20 +148,17 @@ def display_instances(image, boxes, masks, class_ids, class_names,
             ax.add_patch(p)
 
         # Label
-        if not captions:
-            class_id = class_ids[i]
-            score = scores[i] if scores is not None else None
-            if class_id < len(class_names):
-                label = class_names[class_id]
-                caption = "{} {:.3f}".format(label, score) if score else label
+        class_id = class_ids[i]
+        score = scores[i] if scores is not None else None
+        if not captions and class_id < len(class_names):
+            label = class_names[class_id]
+            caption = "{} {:.3f}".format(label, score) if score else label
         else:
             caption = captions[i]
-        ax.text(x1, y1 + 8, caption,
-                color='w', size=11, backgroundcolor="none")
+        ax.text(x1, y1 + 8, caption, color='w', size=11, backgroundcolor="none")
 
         # Mask
         mask = masks[:, :, i]
-        mask = mask_suavization(mask)
         if show_mask:
             masked_image = apply_mask(masked_image, mask, color)
 

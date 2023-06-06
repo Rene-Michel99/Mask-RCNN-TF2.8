@@ -1,6 +1,6 @@
 import tensorflow as tf
 from ._Common import norm_boxes_graph, refine_detections_graph
-from Utils.utilfunctions import batch_slice, parse_image_meta_graph
+from src.Utils.utilfunctions import batch_slice, parse_image_meta_graph
 
 
 class Interface:

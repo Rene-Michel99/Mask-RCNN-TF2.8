@@ -28,7 +28,7 @@ It includes code to run object detection and instance segmentation on arbitrary 
 
 * [train_shapes.ipynb](tests/shapes/train_shapes.ipynb) shows how to train Mask R-CNN on your own dataset. This notebook introduces a toy dataset (Shapes) to demonstrate training on a new dataset.
 
-* ([model.py](model.py), [utils.py](Utils/utilfunctions.py), [config.py](Configs/config.py)): These files contain the main Mask RCNN implementation. 
+* ([model.py](model.py), [utils.py](src/Utils/utilfunctions.py), [config.py](src/Configs/config.py)): These files contain the main Mask RCNN implementation. 
 
 
 * [inspect_data.ipynb](tests/coco/inspect_data.ipynb). This notebook visualizes the different pre-processing steps

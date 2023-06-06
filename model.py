@@ -1,17 +1,23 @@
 import os
 import re
 import datetime
+import numpy as np
 import multiprocessing
+import tensorflow as tf
 import tensorflow.keras as keras
 import tensorflow.keras.backend as K
 import tensorflow.keras.layers as KL
 
-from Configs import Config
-from Utils import utilfunctions
-from Utils.ResnetUtils import resnet_graph
-from Utils.DataUtils import *
-from Utils.RpnUtils import *
-from CustomLayers import (
+from src.Configs import Config
+from src.Utils import utilfunctions
+from src.Utils.DataUtils import mold_image, compose_image_meta
+from src.Utils.ResnetUtils import resnet_graph
+from src.Utils.RpnUtils import (
+    build_rpn_model,
+    fpn_classifier_graph,
+    build_fpn_mask_graph
+)
+from src.CustomLayers import (
     norm_boxes_graph,
     ProposalLayer,
     DetectionLayer,
@@ -24,9 +30,9 @@ from CustomLayers import (
     MRCNNBboxLossGraph,
     MRCNNMaskLossGraph
 )
-from CustomKerasModel import MaskRCNNModel
-from CustomCallbacks import ClearMemory
-from DataGenerator import DataGenerator
+from src.CustomKerasModel import MaskRCNNModel
+from src.CustomCallbacks import ClearMemory
+from src.DataGenerator import DataGenerator
 
 # Requires TensorFlow 2.8+
 from distutils.version import LooseVersion
@@ -86,8 +92,8 @@ class MaskRCNN:
             _, c2, c3, c4, c5 = resnet_graph(input_image, config.BACKBONE,
                                              stage5=True, train_bn=config.TRAIN_BN)
         # Top-down Layers
-        # TODO: add assert to varify feature map sizes match what's in config
         p5 = KL.Conv2D(config.TOP_DOWN_PYRAMID_SIZE, (1, 1), name='fpn_c5p5')(c5)
+        assert config.TOP_DOWN_PYRAMID_SIZE == p5.shape[-1]
         size = (2, 2) if config.BACKBONE == "resnet101V2" else (2, 2)
         p4 = KL.Add(name="fpn_p4add")([
             KL.UpSampling2D(size=size, name="fpn_p5upsampled", interpolation=config.INTERPOLATION_METHOD)(p5),
@@ -671,9 +677,9 @@ class MaskRCNN:
             # Print trainable layer names
             if trainable and verbose > 0:
                 utilfunctions.log("{}{:20}   ({})".format(" " * indent, layer.name,
-                                                  layer.__class__.__name__))
+                                                          layer.__class__.__name__))
 
-    def set_log_dir(self, model_path=None):
+    def set_log_dir(self, model_path: str = None):
         """Sets the model log directory and epoch counter.
 
         model_path: If None, or a format different from what this code uses
@@ -928,7 +934,8 @@ class MaskRCNN:
                 min_dim=self.config.IMAGE_MIN_DIM,
                 min_scale=self.config.IMAGE_MIN_SCALE,
                 max_dim=self.config.IMAGE_MAX_DIM,
-                mode=self.config.IMAGE_RESIZE_MODE)
+                mode=self.config.IMAGE_RESIZE_MODE
+            )
             molded_image = mold_image(molded_image, self.config)
             # Build image_meta
             image_meta = compose_image_meta(

@@ -1,10 +1,10 @@
 import os
 import random
 
-from CustomLayers import *
-from Utils import utilfunctions, visualize
-from Configs.ShapesConfig import ShapesDataset, ShapesConfig
-from Utils.DataUtils import load_image_gt
+from src.CustomLayers import *
+from src.Utils import visualize
+from src.Configs import ShapesDataset, ShapesConfig
+from src.Utils import load_image_gt
 from model import MaskRCNN
 os.environ['CUDA_VISIBLE_DEVICES'] = '-1'  # comentar em caso de usar a GPU
 

@@ -1,7 +1,6 @@
-import tensorflow as tf
 import tensorflow.keras.layers as KL
 import tensorflow.keras.models as KM
-from CustomLayers import BatchNorm
+from src.CustomLayers import BatchNorm
 from .RpnUtils import rpn_graph
 
 

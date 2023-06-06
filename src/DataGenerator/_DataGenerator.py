@@ -1,8 +1,8 @@
 import tensorflow.keras.utils as KU
 import numpy as np
 
-from Utils.DataUtils import load_image_gt
-from Utils.utilfunctions import (
+from src.Utils.DataUtils import load_image_gt
+from src.Utils.utilfunctions import (
     compute_backbone_shapes,
     generate_pyramid_anchors,
     compute_overlaps,

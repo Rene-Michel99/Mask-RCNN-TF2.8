@@ -2,7 +2,7 @@ import numpy as np
 import tensorflow as tf
 from tensorflow.python.eager import context
 
-from Utils.utilfunctions import batch_slice
+from src.Utils.utilfunctions import batch_slice
 from ._Common import apply_box_deltas_graph, clip_boxes_graph
 
 
