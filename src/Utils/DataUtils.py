@@ -114,14 +114,7 @@ def denorm_boxes_graph(boxes, shape):
 #  Data Generator
 ############################################################
 
-def load_image_gt(
-        dataset,
-        config,
-        image_id,
-        augmentation=None,
-        use_mini_mask=False,
-        interpolation_method="bilinear"
-):
+def load_image_gt(dataset, config, image_id, augmentation=None, use_mini_mask=False):
     """Load and return ground truth data for an image (image, mask, bounding boxes).
 
     augment: (deprecated. Use augmentation instead). If true, apply random
@@ -153,8 +146,7 @@ def load_image_gt(
         min_dim=config.IMAGE_MIN_DIM,
         min_scale=config.IMAGE_MIN_SCALE,
         max_dim=config.IMAGE_MAX_DIM,
-        mode=config.IMAGE_RESIZE_MODE
-    )
+        mode=config.IMAGE_RESIZE_MODE)
     mask = resize_mask(mask, scale, padding, crop)
 
     # Augmentation
@@ -207,10 +199,7 @@ def load_image_gt(
 
     # Resize masks to smaller size to reduce memory usage
     if use_mini_mask:
-        mask = minimize_mask(
-            bbox, mask, config.MINI_MASK_SHAPE,
-            interpolation_method=interpolation_method
-        )
+        mask = minimize_mask(bbox, mask, config.MINI_MASK_SHAPE)
 
     # Image meta data
     image_meta = compose_image_meta(image_id, original_shape, image.shape,

@@ -448,10 +448,8 @@ class DataGenerator(KU.Sequence):
             # Get GT bounding boxes and masks for image.
             image_id = self.image_ids[image_index]
             image, image_meta, gt_class_ids, gt_boxes, gt_masks = load_image_gt(
-                self.dataset, self.config, image_id,
-                augmentation=self.augmentation,
-                use_mini_mask=self.config.USE_MINI_MASK,
-                interpolation_method=self.config.INTERPOLATION_METHOD
+                self.dataset, self.config, image_id, augmentation=self.augmentation,
+                use_mini_mask=self.config.USE_MINI_MASK
             )
 
             # Skip images that have no instances. This can happen in cases

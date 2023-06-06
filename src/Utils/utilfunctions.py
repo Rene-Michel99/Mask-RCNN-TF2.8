@@ -291,7 +291,13 @@ def box_refinement(box, gt_box):
     return np.stack([dy, dx, dh, dw], axis=1)
 
 
-def resize_image(image, min_dim=None, max_dim=None, min_scale=None, mode="square"):
+def resize_image(
+        image,
+        min_dim=None,
+        max_dim=None,
+        min_scale=None,
+        mode="square"
+):
     """Resizes an image keeping the aspect ratio unchanged.
 
     min_dim: if provided, resizes the image such that it's smaller
@@ -419,7 +425,13 @@ def resize_mask(mask, scale, padding, crop=None):
     return mask
 
 
-def minimize_mask(bbox, mask, mini_shape, interpolation_method='bilinear'):
+def minimize_mask(
+        bbox,
+        mask,
+        mini_shape,
+        use_skimage_resize=False,
+        interpolation_method='bicubic'
+):
     """Resize masks to a smaller version to reduce memory load.
     Mini-masks can be resized back to image scale using expand_masks()
 
@@ -472,7 +484,7 @@ def unmold_mask(mask, bbox, image_shape):
     """
     threshold = 0.5
     y1, x1, y2, x2 = bbox
-    mask = resize(mask, (y2 - y1, x2 - x1))
+    mask = resize(mask, (y2 - y1, x2 - x1), interpolation_method='bicubic')
     mask = np.where(mask >= threshold, 1, 0).astype(bool)
 
     # Put the mask in the right location.
@@ -804,6 +816,24 @@ def _parse_interpolation_method(interpolation_method: str):
     return INTERPOLATION_METHODS.get(interpolation_method)
 
 
+def resize_skimage(image, output_shape, order=1, mode='constant', cval=0, clip=True,
+           preserve_range=False, anti_aliasing=False, anti_aliasing_sigma=None):
+    """A wrapper for Scikit-Image resize().
+
+    Scikit-Image generates warnings on every call to resize() if it doesn't
+    receive the right parameters. The right parameters depend on the version
+    of skimage. This solves the problem by using different parameters per
+    version. And it provides a central place to control resizing defaults.
+    """
+
+    return skimage.transform.resize(
+        image, output_shape,
+        order=order, mode=mode, cval=cval, clip=clip,
+        preserve_range=preserve_range, anti_aliasing=anti_aliasing,
+        anti_aliasing_sigma=anti_aliasing_sigma
+    )
+
+
 def resize(image, output_shape, interpolation_method: str = "bicubic"):
     """A wrapper for Scikit-Image resize().
 
@@ -814,7 +844,7 @@ def resize(image, output_shape, interpolation_method: str = "bicubic"):
     """
     dtype_input = image.dtype
     interpolation_method = _parse_interpolation_method(interpolation_method)
-    if dtype_input != np.uint8:
+    if dtype_input not in [np.uint8, np.float32, np.uint16]:
         return cv.resize(
             image.astype(np.uint8), output_shape[::-1],
             interpolation_method
