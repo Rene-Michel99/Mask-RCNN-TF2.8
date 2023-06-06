@@ -3,20 +3,16 @@ import tensorflow as tf
 from tensorflow.python.eager import context
 
 from src.Utils.utilfunctions import batch_slice
+from ._Interface import Interface
 from ._Common import apply_box_deltas_graph, clip_boxes_graph
 
 
-class Interface:
+class ProposalInterface(Interface):
     def __init__(self, config):
         self.NMS_THRESHOLD = config.RPN_NMS_THRESHOLD
         self.IMAGES_PER_GPU = config.IMAGES_PER_GPU
         self.PRE_NMS_LIMIT = config.PRE_NMS_LIMIT
         self.RPN_BBOX_STD_DEV = config.RPN_BBOX_STD_DEV
-
-    def to_dict(self):
-        return {a: getattr(self, a)
-                for a in sorted(dir(self))
-                if not a.startswith("__") and not callable(getattr(self, a))}
 
 
 class ProposalLayer(tf.keras.layers.Layer):
@@ -42,7 +38,7 @@ class ProposalLayer(tf.keras.layers.Layer):
     ):
         super(ProposalLayer, self).__init__(**kwargs)
         self.proposal_count = proposal_count
-        self.interface = Interface(config)
+        self.interface = ProposalInterface(config)
 
         self.batch_slice = batch_slice
         self.apply_box_deltas_graph = apply_box_deltas_graph
