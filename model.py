@@ -1,18 +1,24 @@
 import os
 import re
 import datetime
-from enum import Enum
+import numpy as np
 import multiprocessing
+import tensorflow as tf
 import tensorflow.keras as keras
 import tensorflow.keras.backend as K
 import tensorflow.keras.layers as KL
 
-from resources import utils
-from CustomLayers import norm_boxes_graph
-from resources.resnet_utils import resnet_graph
-from resources.Data_utils import *
-from resources.RPN_utils import *
-from CustomLayers import (
+from src.Configs import Config
+from src.Utils import utilfunctions
+from src.Utils.DataUtils import mold_image, compose_image_meta
+from src.Utils.ResnetUtils import resnet_graph
+from src.Utils.RpnUtils import (
+    build_rpn_model,
+    fpn_classifier_graph,
+    build_fpn_mask_graph
+)
+from src.CustomLayers import (
+    norm_boxes_graph,
     ProposalLayer,
     DetectionLayer,
     DetectionTargetLayer,
@@ -24,19 +30,13 @@ from CustomLayers import (
     MRCNNBboxLossGraph,
     MRCNNMaskLossGraph
 )
-from CustomKerasModel import MaskRCNNModel
-from CustomCallbacks import ClearMemory
-from DataGenerator import DataGenerator
+from src.CustomKerasModel import MaskRCNNModel
+from src.CustomCallbacks import ClearMemory
+from src.DataGenerator import DataGenerator
 
 # Requires TensorFlow 2.8+
 from distutils.version import LooseVersion
-assert LooseVersion(tf.__version__) >= LooseVersion("2.2")
-#tf.compat.v1.disable_eager_execution()
-
-
-class Mode(Enum):
-    MASK = 'MASK'
-    OBJECT_LOCATION = 'OBJECT_LOCATION'
+assert LooseVersion(tf.__version__) >= LooseVersion("2.8")
 
 
 class MaskRCNN:
@@ -45,7 +45,7 @@ class MaskRCNN:
     The actual Keras model is in the keras_model property.
     """
 
-    def __init__(self, mode, config, model_dir='./logs'):
+    def __init__(self, mode: str, config: Config, model_dir='./logs'):
         """
         mode: Either "training" or "inference"
         config: A Sub-class of the Config class
@@ -63,6 +63,19 @@ class MaskRCNN:
         self.is_compiled = False
         self.keras_model = self.build(mode=mode, config=config)
 
+    def rebuild_as(self, mode: str, config: Config = None):
+        assert mode in ['training', 'inference']
+        self.mode = mode
+        self.epoch = 0
+        self._anchor_cache.clear()
+        self.is_compiled = False
+
+        tf.keras.backend.clear_session()
+        del self.keras_model
+
+        config = config if config is not None else self.config
+        self.keras_model = self.build(mode=mode, config=config)
+
     @staticmethod
     def _build_shared_convolutional_layers(
             config,
@@ -71,44 +84,41 @@ class MaskRCNN:
         # Build the shared convolutional layers.
         # Bottom-up Layers
         # Returns a list of the last layers of each stage, 5 in total.
-        # Don't create the thread (stage 5), so we pick the 4th item in the list.
+        # Don't create the thead (stage 5), so we pick the 4th item in the list.
         if callable(config.BACKBONE):
-            _, C2, C3, C4, C5 = config.BACKBONE(
-                input_image, stage5=True,
-                train_bn=config.TRAIN_BN
-            )
+            _, c2, c3, c4, c5 = config.BACKBONE(input_image, stage5=True,
+                                                train_bn=config.TRAIN_BN)
         else:
-            _, C2, C3, C4, C5 = resnet_graph(
-                input_image, config.BACKBONE,
-                stage5=True, train_bn=config.TRAIN_BN
-            )
+            _, c2, c3, c4, c5 = resnet_graph(input_image, config.BACKBONE,
+                                             stage5=True, train_bn=config.TRAIN_BN)
         # Top-down Layers
-        P5 = KL.Conv2D(config.TOP_DOWN_PYRAMID_SIZE, (1, 1), name='fpn_c5p5')(C5)
-        assert P5.shape[3] == config.TOP_DOWN_PYRAMID_SIZE, "Incorrect feature map size"
-        P4 = KL.Add(name="fpn_p4add")([
-            KL.UpSampling2D(size=(2, 2), name="fpn_p5upsampled")(P5),
-            KL.Conv2D(config.TOP_DOWN_PYRAMID_SIZE, (1, 1), name='fpn_c4p4')(C4)]
-        )
-        P3 = KL.Add(name="fpn_p3add")([
-            KL.UpSampling2D(size=(2, 2), name="fpn_p4upsampled")(P4),
-            KL.Conv2D(config.TOP_DOWN_PYRAMID_SIZE, (1, 1), name='fpn_c3p3')(C3)]
-        )
-        P2 = KL.Add(name="fpn_p2add")([
-            KL.UpSampling2D(size=(2, 2), name="fpn_p3upsampled")(P3),
-            KL.Conv2D(config.TOP_DOWN_PYRAMID_SIZE, (1, 1), name='fpn_c2p2')(C2)]
-        )
+        p5 = KL.Conv2D(config.TOP_DOWN_PYRAMID_SIZE, (1, 1), name='fpn_c5p5')(c5)
+        assert config.TOP_DOWN_PYRAMID_SIZE == p5.shape[-1]
+        size = (2, 2) if config.BACKBONE == "resnet101V2" else (2, 2)
+        p4 = KL.Add(name="fpn_p4add")([
+            KL.UpSampling2D(size=size, name="fpn_p5upsampled", interpolation=config.INTERPOLATION_METHOD)(p5),
+            KL.Conv2D(config.TOP_DOWN_PYRAMID_SIZE, (1, 1), name='fpn_c4p4')(c4)
+        ])
+        p3 = KL.Add(name="fpn_p3add")([
+            KL.UpSampling2D(size=(2, 2), name="fpn_p4upsampled", interpolation=config.INTERPOLATION_METHOD)(p4),
+            KL.Conv2D(config.TOP_DOWN_PYRAMID_SIZE, (1, 1), name='fpn_c3p3')(c3)
+        ])
+        p2 = KL.Add(name="fpn_p2add")([
+            KL.UpSampling2D(size=(2, 2), name="fpn_p3upsampled", interpolation=config.INTERPOLATION_METHOD)(p3),
+            KL.Conv2D(config.TOP_DOWN_PYRAMID_SIZE, (1, 1), name='fpn_c2p2')(c2)
+        ])
         # Attach 3x3 conv to all P layers to get the final feature maps.
-        P2 = KL.Conv2D(config.TOP_DOWN_PYRAMID_SIZE, (3, 3), padding="SAME", name="fpn_p2")(P2)
-        P3 = KL.Conv2D(config.TOP_DOWN_PYRAMID_SIZE, (3, 3), padding="SAME", name="fpn_p3")(P3)
-        P4 = KL.Conv2D(config.TOP_DOWN_PYRAMID_SIZE, (3, 3), padding="SAME", name="fpn_p4")(P4)
-        P5 = KL.Conv2D(config.TOP_DOWN_PYRAMID_SIZE, (3, 3), padding="SAME", name="fpn_p5")(P5)
+        p2 = KL.Conv2D(config.TOP_DOWN_PYRAMID_SIZE, (3, 3), padding="SAME", name="fpn_p2")(p2)
+        p3 = KL.Conv2D(config.TOP_DOWN_PYRAMID_SIZE, (3, 3), padding="SAME", name="fpn_p3")(p3)
+        p4 = KL.Conv2D(config.TOP_DOWN_PYRAMID_SIZE, (3, 3), padding="SAME", name="fpn_p4")(p4)
+        p5 = KL.Conv2D(config.TOP_DOWN_PYRAMID_SIZE, (3, 3), padding="SAME", name="fpn_p5")(p5)
         # P6 is used for the 5th anchor scale in RPN. Generated by
         # subsampling from P5 with stride of 2.
-        P6 = KL.MaxPooling2D(pool_size=(1, 1), strides=2, name="fpn_p6")(P5)
+        p6 = KL.MaxPooling2D(pool_size=(1, 1), strides=2, name="fpn_p6")(p5)
 
         # Note that P6 is used in RPN, but not in the classifier heads.
-        rpn_feature_maps = [P2, P3, P4, P5, P6]
-        mrcnn_feature_maps = [P2, P3, P4, P5]
+        rpn_feature_maps = [p2, p3, p4, p5, p6]
+        mrcnn_feature_maps = [p2, p3, p4, p5]
         return rpn_feature_maps, mrcnn_feature_maps
 
     @staticmethod
@@ -218,7 +228,7 @@ class MaskRCNN:
         # Class ID mask to mark class IDs supported by the dataset the image
         # came from.
         active_class_ids = KL.Lambda(
-            lambda x: utils.parse_image_meta_graph(x)["active_class_ids"]
+            lambda x: utilfunctions.parse_image_meta_graph(x)["active_class_ids"]
         )(input_image_meta)
 
         input_rois = None
@@ -245,8 +255,9 @@ class MaskRCNN:
         mrcnn_class_logits, mrcnn_class, mrcnn_bbox = fpn_classifier_graph(
             rois, mrcnn_feature_maps, input_image_meta,
             config.POOL_SIZE, config.NUM_CLASSES,
+            config.INTERPOLATION_METHOD,
             train_bn=config.TRAIN_BN,
-            fc_layers_size=config.FPN_CLASSIF_FC_LAYERS_SIZE
+            fc_layers_size=config.FPN_CLASSIFIER_FC_LAYERS_SIZE
         )
 
         mrcnn_mask = build_fpn_mask_graph(
@@ -254,6 +265,7 @@ class MaskRCNN:
             input_image_meta,
             config.MASK_POOL_SIZE,
             config.NUM_CLASSES,
+            config.INTERPOLATION_METHOD,
             train_bn=config.TRAIN_BN
         )
 
@@ -320,8 +332,9 @@ class MaskRCNN:
         mrcnn_class_logits, mrcnn_class, mrcnn_bbox = fpn_classifier_graph(
             rpn_rois, mrcnn_feature_maps, input_image_meta,
             config.POOL_SIZE, config.NUM_CLASSES,
+            config.INTERPOLATION_METHOD,
             train_bn=config.TRAIN_BN,
-            fc_layers_size=config.FPN_CLASSIF_FC_LAYERS_SIZE
+            fc_layers_size=config.FPN_CLASSIFIER_FC_LAYERS_SIZE
         )
 
         # Detections
@@ -339,6 +352,7 @@ class MaskRCNN:
             input_image_meta,
             config.MASK_POOL_SIZE,
             config.NUM_CLASSES,
+            config.INTERPOLATION_METHOD,
             train_bn=config.TRAIN_BN
         )
         return MaskRCNNModel(
@@ -348,7 +362,7 @@ class MaskRCNN:
             name='mask_rcnn'
         )
 
-    def build(self, mode, config):
+    def build(self, mode: str, config: Config) -> MaskRCNNModel:
         """Build Mask R-CNN architecture.
             input_shape: The shape of the input image.
             mode: Either "training" or "inference". The inputs and
@@ -416,7 +430,7 @@ class MaskRCNN:
     def load_weights(
             self,
             init_with='',
-            filepath='',
+            filepath=None,
             by_name=False
     ):
         """Modified version of the corresponding Keras function with
@@ -436,6 +450,7 @@ class MaskRCNN:
                 # Load weights trained on MS COCO, but skip layers that
                 # are different due to the different number of classes
                 # See README for instructions to download the COCO weights
+                utilfunctions.download_trained_weights(filepath)
                 filepath = './logs/mask_rcnn_coco.h5'
             elif init_with == "last":
                 # Load the last model you trained and continue training
@@ -485,20 +500,65 @@ class MaskRCNN:
         # Update the log directory
         self.set_log_dir(filepath)
 
-    @staticmethod
-    def get_imagenet_weights():
+    def get_imagenet_weights(self, include_top=False):
         """Downloads ImageNet trained weights from Keras.
         Returns path to weights file.
         """
         from keras.utils.data_utils import get_file
 
-        TF_WEIGHTS_PATH_NO_TOP = 'https://github.com/fchollet/deep-learning-models/'\
-                                 'releases/download/v0.2/'\
-                                 'resnet50_weights_tf_dim_ordering_tf_kernels_notop.h5'
-        weights_path = get_file('resnet50_weights_tf_dim_ordering_tf_kernels_notop.h5',
-                                TF_WEIGHTS_PATH_NO_TOP,
-                                cache_subdir='models',
-                                md5_hash='a268eb855778b3df3c7506639542a6af')
+        BASE_WEIGHTS_PATH = (
+            "https://storage.googleapis.com/tensorflow/keras-applications/resnet/"
+        )
+        WEIGHTS_HASHES = {
+            "resnet50": (
+                "2cb95161c43110f7111970584f804107",
+                "4d473c1dd8becc155b73f8504c6f6626",
+            ),
+            "resnet101": (
+                "f1aeb4b969a6efcfb50fad2f0c20cfc5",
+                "88cf7a10940856eca736dc7b7e228a21",
+            ),
+            "resnet152": (
+                "100835be76be38e30d865e96f2aaae62",
+                "ee4c566cf9a93f14d82f913c2dc6dd0c",
+            ),
+            "resnet50v2": (
+                "3ef43a0b657b3be2300d5770ece849e0",
+                "fac2f116257151a9d068a22e544a4917",
+            ),
+            "resnet101v2": (
+                "6343647c601c52e1368623803854d971",
+                "c0ed64b8031c3730f411d2eb4eea35b5",
+            ),
+            "resnet152v2": (
+                "a49b44d1979771252814e80f8ec446f9",
+                "ed17cf2e0169df9d443503ef94b23b33",
+            ),
+            "resnext50": (
+                "67a5b30d522ed92f75a1f16eef299d1a",
+                "62527c363bdd9ec598bed41947b379fc",
+            ),
+            "resnext101": (
+                "34fb605428fcc7aa4d62f44404c11509",
+                "0f678c91647380debd923963594981b3",
+            ),
+        }
+
+        model_name = self.config.BACKBONE.replace('V2', '')
+        if include_top:
+            file_name = model_name + "_weights_tf_dim_ordering_tf_kernels.h5"
+            file_hash = WEIGHTS_HASHES[model_name][0]
+        else:
+            file_name = (
+                model_name + "_weights_tf_dim_ordering_tf_kernels_notop.h5"
+            )
+            file_hash = WEIGHTS_HASHES[model_name][1]
+        weights_path = get_file(
+            file_name,
+            BASE_WEIGHTS_PATH + file_name,
+            cache_subdir="models",
+            file_hash=file_hash,
+        )
         return weights_path
 
     def _get_optimizer(self, learning_rate, momentum):
@@ -588,7 +648,7 @@ class MaskRCNN:
         """
         # Print message on the first call (but not on recursive calls)
         if verbose > 0 and keras_model is None:
-            utils.log("Selecting layers to train")
+            utilfunctions.log("Selecting layers to train")
 
         keras_model = keras_model or self.keras_model
 
@@ -616,10 +676,10 @@ class MaskRCNN:
                 layer.trainable = trainable
             # Print trainable layer names
             if trainable and verbose > 0:
-                utils.log("{}{:20}   ({})".format(" " * indent, layer.name,
-                                                  layer.__class__.__name__))
+                utilfunctions.log("{}{:20}   ({})".format(" " * indent, layer.name,
+                                                          layer.__class__.__name__))
 
-    def set_log_dir(self, model_path=None):
+    def set_log_dir(self, model_path: str = None):
         """Sets the model log directory and epoch counter.
 
         model_path: If None, or a format different from what this code uses
@@ -670,7 +730,8 @@ class MaskRCNN:
             use_early_stopping=True,
             augmentation=None,
             custom_callbacks=None,
-            use_clear_memory=False
+            use_clear_memory=False,
+            debug=False,
     ):
         """Train the model.
         train_dataset, val_dataset: Training and validation Dataset objects.
@@ -751,7 +812,7 @@ class MaskRCNN:
             callbacks += custom_callbacks
 
         # Train
-        utils.log("\nStarting at epoch {}. LR={}\n".format(self.epoch, learning_rate))
+        utilfunctions.log("\nStarting at epoch {}. LR={}\n".format(self.epoch, learning_rate))
         print("Checkpoint Path: {}".format(self._checkpoint_path))
         self.set_trainable(layers)
         self.compile(learning_rate, self.config.LEARNING_MOMENTUM)
@@ -765,6 +826,12 @@ class MaskRCNN:
         else:
             workers = multiprocessing.cpu_count()
 
+        if debug:
+            tf.config.set_soft_device_placement(True)
+            tf.debugging.experimental.enable_dump_debug_info(
+                self._log_dir + '/train-ops-logs',
+                tensor_debug_mode="FULL_HEALTH"
+            )
         history = self.keras_model.fit(
             train_generator,
             epochs=epochs,
@@ -814,8 +881,8 @@ class MaskRCNN:
             callbacks += custom_callbacks
 
         # Train
-        utils.log("\nStarting at epoch {}. LR={}\n".format(self.epoch, learning_rate))
-        utils.log("Checkpoint Path: {}".format(self._checkpoint_path))
+        utilfunctions.log("\nStarting at epoch {}. LR={}\n".format(self.epoch, learning_rate))
+        utilfunctions.log("Checkpoint Path: {}".format(self._checkpoint_path))
         self.set_trainable(layers)
         self.compile(learning_rate, self.config.LEARNING_MOMENTUM)
         print("Model Compiled Successfully")
@@ -862,12 +929,13 @@ class MaskRCNN:
         for image in images:
             # Resize image
             # TODO: move resizing to mold_image()
-            molded_image, window, scale, padding, crop = utils.resize_image(
+            molded_image, window, scale, padding, crop = utilfunctions.resize_image(
                 image,
                 min_dim=self.config.IMAGE_MIN_DIM,
                 min_scale=self.config.IMAGE_MIN_SCALE,
                 max_dim=self.config.IMAGE_MAX_DIM,
-                mode=self.config.IMAGE_RESIZE_MODE)
+                mode=self.config.IMAGE_RESIZE_MODE
+            )
             molded_image = mold_image(molded_image, self.config)
             # Build image_meta
             image_meta = compose_image_meta(
@@ -916,7 +984,7 @@ class MaskRCNN:
 
         # Translate normalized coordinates in the resized image to pixel
         # coordinates in the original image before resizing
-        window = utils.norm_boxes(window, image_shape[:2])
+        window = utilfunctions.norm_boxes(window, image_shape[:2])
         wy1, wx1, wy2, wx2 = window
         shift = np.array([wy1, wx1, wy1, wx1])
         wh = wy2 - wy1  # window height
@@ -925,7 +993,7 @@ class MaskRCNN:
         # Convert boxes to normalized coordinates on the window
         boxes = np.divide(boxes - shift, scale)
         # Convert boxes to pixel coordinates on the original image
-        boxes = utils.denorm_boxes(boxes, original_image_shape[:2])
+        boxes = utilfunctions.denorm_boxes(boxes, original_image_shape[:2])
 
         # Filter out detections with zero area. Happens in early training when
         # network weights are still random
@@ -942,7 +1010,7 @@ class MaskRCNN:
         full_masks = []
         for i in range(N):
             # Convert neural network mask to full size mask
-            full_mask = utils.unmold_mask(masks[i], boxes[i], original_image_shape)
+            full_mask = utilfunctions.unmold_mask(masks[i], boxes[i], original_image_shape)
             full_masks.append(full_mask)
 
         full_masks = np.stack(full_masks, axis=-1) \
@@ -965,9 +1033,9 @@ class MaskRCNN:
         assert len(images) == self.config.BATCH_SIZE, "len(images) must be equal to BATCH_SIZE"
 
         if verbose:
-            utils.log("Processing {} images".format(len(images)))
+            utilfunctions.log("Processing {} images".format(len(images)))
             for image in images:
-                utils.log("image", image)
+                utilfunctions.log("image", image)
 
         # Mold inputs to format expected by the neural network
         molded_images, image_metas, windows = self.mold_inputs(images)
@@ -987,9 +1055,9 @@ class MaskRCNN:
         # np.save("molded_images.npy", molded_images)
 
         if verbose:
-            utils.log("molded_images", molded_images)
-            utils.log("image_metas", image_metas)
-            utils.log("anchors", anchors)
+            utilfunctions.log("molded_images", molded_images)
+            utilfunctions.log("image_metas", image_metas)
+            utilfunctions.log("anchors", anchors)
 
         # Run object detection
         return self._process_detections(
@@ -1036,9 +1104,9 @@ class MaskRCNN:
             "Number of images must be equal to BATCH_SIZE"
 
         if verbose:
-            utils.log("Processing {} images".format(len(molded_images)))
+            utilfunctions.log("Processing {} images".format(len(molded_images)))
             for image in molded_images:
-                utils.log("image", image)
+                utilfunctions.log("image", image)
 
         # Validate image sizes
         # All images in a batch MUST be of the same size
@@ -1051,9 +1119,9 @@ class MaskRCNN:
         anchors = np.broadcast_to(anchors, (self.config.BATCH_SIZE,) + anchors.shape)
 
         if verbose:
-            utils.log("molded_images", molded_images)
-            utils.log("image_metas", image_metas)
-            utils.log("anchors", anchors)
+            utilfunctions.log("molded_images", molded_images)
+            utilfunctions.log("image_metas", image_metas)
+            utilfunctions.log("anchors", anchors)
 
         # Run object detection
         return self._process_detections(
@@ -1063,11 +1131,11 @@ class MaskRCNN:
 
     def get_anchors(self, image_shape):
         """Returns anchor pyramid for the given image size."""
-        backbone_shapes = utils.compute_backbone_shapes(self.config, image_shape)
+        backbone_shapes = utilfunctions.compute_backbone_shapes(self.config, image_shape)
         # Cache anchors and reuse if image shape is the same
         if not tuple(image_shape) in self._anchor_cache:
             # Generate Anchors
-            a = utils.generate_pyramid_anchors(
+            a = utilfunctions.generate_pyramid_anchors(
                 self.config.RPN_ANCHOR_SCALES,
                 self.config.RPN_ANCHOR_RATIOS,
                 backbone_shapes,
@@ -1076,7 +1144,7 @@ class MaskRCNN:
             # Keep a copy of the latest anchors in pixel coordinates because
             # it's used in inspect_model notebooks.
             # Normalize coordinates
-            self._anchor_cache[tuple(image_shape)] = utils.norm_boxes(a, image_shape[:2])
+            self._anchor_cache[tuple(image_shape)] = utilfunctions.norm_boxes(a, image_shape[:2])
         return self._anchor_cache[tuple(image_shape)]
 
     def ancestor(self, tensor, name, checked=None):
