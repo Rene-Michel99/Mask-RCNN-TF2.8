@@ -296,7 +296,8 @@ def resize_image(
         min_dim=None,
         max_dim=None,
         min_scale=None,
-        mode="square"
+        mode="square",
+        use_skimage_resize=False,
 ):
     """Resizes an image keeping the aspect ratio unchanged.
 
@@ -356,7 +357,10 @@ def resize_image(
 
     # Resize image using bilinear interpolation
     if scale != 1:
-        image = resize(image, (round(h * scale), round(w * scale)))
+        if use_skimage_resize:
+            image = resize_skimage(image, (round(h * scale), round(w * scale)), preserve_range=True)
+        else:
+            image = resize(image, (round(h * scale), round(w * scale)))
 
     # Need padding or cropping?
     if mode == "square":
@@ -446,7 +450,10 @@ def minimize_mask(
         if m.size == 0:
             raise Exception("Invalid bounding box with area of zero")
         # Resize with bilinear interpolation
-        m = resize(m, mini_shape, interpolation_method=interpolation_method)
+        if use_skimage_resize:
+            m = resize_skimage(m, mini_shape, order=0 if m.dtype == bool else 1)
+        else:
+            m = resize(m, mini_shape, interpolation_method=interpolation_method)
         mini_mask[:, :, i] = np.around(m).astype(bool)
     return mini_mask
 
