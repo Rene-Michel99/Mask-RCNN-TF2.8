@@ -1,7 +1,7 @@
 
 # Mask R-CNN Tensorflow 2.8
 
-Migration of [matterpot](https://github.com/matterport/Mask_RCNN) Mask R-CNN implementation to work in versions starting with Tensorflow 2.8.
+Migration of [matterpot](https://github.com/matterport/Mask_RCNN) Mask R-CNN implementation to work in versions starting with Tensorflow 2.8. Also, code improvements to better understading and maintenance.
 
 # Introduction of Mask R-CNN
 
@@ -19,8 +19,7 @@ The repository includes:
 * Example of training on your own dataset
 
 
-The code is documented and designed to be easy to extend. If you use it in your research, please consider citing this repository (bibtex below). If you work on 3D vision, you might find our recently released [Matterport3D](https://matterport.com/blog/2017/09/20/announcing-matterport3d-research-dataset/) dataset useful as well.
-This dataset was created from 3D-reconstructed spaces captured by our customers who agreed to make them publicly available for academic use. You can see more examples [here](https://matterport.com/gallery/).
+The code is documented and designed to be easy to extend. If you use it in your research, please consider citing this repository (bibtex below).
 
 # Getting Started
 * [demo.ipynb](tests/demo.ipynb) Is the easiest way to start. It shows an example of using a model pre-trained on MS COCO to segment objects in your own images.
