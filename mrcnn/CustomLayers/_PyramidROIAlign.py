@@ -2,7 +2,7 @@ import tensorflow as tf
 
 from ._Common import resize_and_crop
 from ._Interface import Interface
-from src.Utils.utilfunctions import parse_image_meta_graph
+from mrcnn.Utils.utilfunctions import parse_image_meta_graph
 
 
 ############################################################

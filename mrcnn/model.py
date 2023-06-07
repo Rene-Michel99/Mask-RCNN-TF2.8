@@ -8,16 +8,16 @@ import tensorflow.keras as keras
 import tensorflow.keras.backend as K
 import tensorflow.keras.layers as KL
 
-from src.Configs import Config
-from src.Utils import utilfunctions
-from src.Utils.DataUtils import mold_image, compose_image_meta
-from src.Utils.ResnetUtils import resnet_graph
-from src.Utils.RpnUtils import (
+from mrcnn.Configs import Config
+from mrcnn.Utils import utilfunctions
+from mrcnn.Utils.DataUtils import mold_image, compose_image_meta
+from mrcnn.Utils.ResnetUtils import resnet_graph
+from mrcnn.Utils.RpnUtils import (
     build_rpn_model,
     fpn_classifier_graph,
     build_fpn_mask_graph
 )
-from src.CustomLayers import (
+from mrcnn.CustomLayers import (
     norm_boxes_graph,
     ProposalLayer,
     DetectionLayer,
@@ -30,9 +30,9 @@ from src.CustomLayers import (
     MRCNNBboxLossGraph,
     MRCNNMaskLossGraph
 )
-from src.CustomKerasModel import MaskRCNNModel
-from src.CustomCallbacks import ClearMemory
-from src.DataGenerator import DataGenerator
+from mrcnn.CustomKerasModel import MaskRCNNModel
+from mrcnn.CustomCallbacks import ClearMemory
+from mrcnn.DataGenerator import DataGenerator
 
 # Requires TensorFlow 2.8+
 from distutils.version import LooseVersion
@@ -450,8 +450,7 @@ class MaskRCNN:
                 # Load weights trained on MS COCO, but skip layers that
                 # are different due to the different number of classes
                 # See README for instructions to download the COCO weights
-                utilfunctions.download_trained_weights(filepath)
-                filepath = './logs/mask_rcnn_coco.h5'
+                filepath = utilfunctions.download_trained_weights(filepath)
             elif init_with == "last":
                 # Load the last model you trained and continue training
                 filepath = self.find_last()

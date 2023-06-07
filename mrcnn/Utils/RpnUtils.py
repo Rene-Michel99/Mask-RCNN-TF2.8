@@ -3,7 +3,7 @@ import tensorflow.keras.layers as KL
 import tensorflow.keras.models as KM
 import tensorflow.keras.backend as K
 
-from src.CustomLayers import (
+from mrcnn.CustomLayers import (
     PyramidROIAlign,
     BatchNorm
 )

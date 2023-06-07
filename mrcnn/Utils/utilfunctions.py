@@ -762,19 +762,23 @@ def batch_slice(inputs, graph_fn, batch_size, names=None):
     return result
 
 
-def download_trained_weights(coco_model_path=None, verbose=1):
+def download_trained_weights(coco_model_path=None, verbose=1) -> str:
     """Download COCO trained weights from Releases.
 
     coco_model_path: local path of COCO trained weights
     """
+    root_dir = os.getcwd()
     if not coco_model_path:
-        coco_model_path = DEFAULT_COCO_WEIGHTS_PATH
-        if not os.path.exists('./logs'):
+        coco_model_path = os.path.join(
+            root_dir,
+            DEFAULT_COCO_WEIGHTS_PATH
+        )
+        if not os.path.exists(os.path.join(root_dir, 'logs')):
             os.system("mkdir %s" % './logs')
 
     if os.path.exists(coco_model_path):
         print("Using downloaded weights at %s" % DEFAULT_COCO_WEIGHTS_PATH)
-        return
+        return coco_model_path
 
     if verbose > 0:
         print("Downloading pretrained model to " + coco_model_path + " ...")
@@ -782,6 +786,7 @@ def download_trained_weights(coco_model_path=None, verbose=1):
         shutil.copyfileobj(resp, out)
     if verbose > 0:
         print("... done downloading pretrained model!")
+    return coco_model_path
 
 
 def norm_boxes(boxes, shape):

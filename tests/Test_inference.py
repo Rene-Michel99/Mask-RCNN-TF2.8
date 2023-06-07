@@ -2,9 +2,9 @@ import os
 import cv2 as cv
 import random
 
-from src.Configs import CocoConfig
-from model import MaskRCNN
-from src.Utils import visualize
+from mrcnn.Configs import CocoConfig
+from mrcnn.model import MaskRCNN
+from mrcnn.Utils import visualize
 
 os.environ['CUDA_VISIBLE_DEVICES'] = '-1'
 

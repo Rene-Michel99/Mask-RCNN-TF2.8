@@ -1,7 +1,7 @@
 import tensorflow as tf
 from ._Interface import Interface
 from ._Common import norm_boxes_graph, refine_detections_graph
-from src.Utils.utilfunctions import batch_slice, parse_image_meta_graph
+from mrcnn.Utils.utilfunctions import batch_slice, parse_image_meta_graph
 
 
 class DetectionInterface(Interface):
