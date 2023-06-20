@@ -874,7 +874,6 @@ class MaskRCNN:
                                         histogram_freq=0, write_graph=True, write_images=False),
             keras.callbacks.ModelCheckpoint(self._checkpoint_path,
                                             verbose=0, save_weights_only=True),
-            LoggerTraining(logger=self._logger),
 
         ]
 
@@ -886,6 +885,14 @@ class MaskRCNN:
                 monitor='val_loss',
                 patience=3
             ))
+
+        if debug:
+            callbacks.append(LoggerTraining(logger=self._logger))
+            tf.config.set_soft_device_placement(True)
+            tf.debugging.experimental.enable_dump_debug_info(
+                self._log_dir + '/train-ops-logs',
+                tensor_debug_mode="FULL_HEALTH"
+            )
 
         # Add custom callbacks to the list
         if custom_callbacks:
@@ -904,13 +911,6 @@ class MaskRCNN:
             workers = 0
         else:
             workers = multiprocessing.cpu_count()
-
-        if debug:
-            tf.config.set_soft_device_placement(True)
-            tf.debugging.experimental.enable_dump_debug_info(
-                self._log_dir + '/train-ops-logs',
-                tensor_debug_mode="FULL_HEALTH"
-            )
 
         try:
             history = self.keras_model.fit(

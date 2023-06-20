@@ -7,9 +7,8 @@ def load_images_dataset(
         dataset_type: str,
         split_train_test=0
 ):
-    annotation_path = search_annotations_file(
-        os.path.join(dataset_path, dataset_type)
-    )
+    dataset_path = os.path.join(dataset_path, dataset_type)
+    annotation_path = search_annotations_file(dataset_path)
 
     dataset_train = CustomDataset()
     dataset_train.load_custom(
