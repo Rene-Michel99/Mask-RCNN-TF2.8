@@ -1,5 +1,7 @@
 import os
 import re
+import json
+import logging
 import datetime
 import numpy as np
 import multiprocessing
@@ -8,16 +10,16 @@ import tensorflow.keras as keras
 import tensorflow.keras.backend as K
 import tensorflow.keras.layers as KL
 
-from mrcnn.Configs import Config
-from mrcnn.Utils import utilfunctions
-from mrcnn.Utils.DataUtils import mold_image, compose_image_meta
-from mrcnn.Utils.ResnetUtils import resnet_graph
-from mrcnn.Utils.RpnUtils import (
+from .Configs import Config
+from .Utils import utilfunctions
+from .Utils.DataUtils import mold_image, compose_image_meta
+from .Utils.ResnetUtils import resnet_graph
+from .Utils.RpnUtils import (
     build_rpn_model,
     fpn_classifier_graph,
     build_fpn_mask_graph
 )
-from mrcnn.CustomLayers import (
+from .CustomLayers import (
     norm_boxes_graph,
     ProposalLayer,
     DetectionLayer,
@@ -30,9 +32,9 @@ from mrcnn.CustomLayers import (
     MRCNNBboxLossGraph,
     MRCNNMaskLossGraph
 )
-from mrcnn.CustomKerasModel import MaskRCNNModel
-from mrcnn.CustomCallbacks import ClearMemory
-from mrcnn.DataGenerator import DataGenerator
+from .CustomKerasModel import MaskRCNNModel
+from .CustomCallbacks import ClearMemory, LoggerTraining
+from .DataGenerator import DataGenerator
 
 # Requires TensorFlow 2.8+
 from distutils.version import LooseVersion
@@ -45,7 +47,7 @@ class MaskRCNN:
     The actual Keras model is in the keras_model property.
     """
 
-    def __init__(self, mode: str, config: Config, model_dir='./logs'):
+    def __init__(self, mode: str, config: Config, model_dir='', log_in_file=False):
         """
         mode: Either "training" or "inference"
         config: A Sub-class of the Config class
@@ -54,14 +56,39 @@ class MaskRCNN:
         assert mode in ['training', 'inference']
         self.mode = mode
         self.config = config
-        self.model_dir = model_dir
+
+        if not model_dir:
+            self.model_dir = utilfunctions.get_root_dir_path() + '/logs'
+        else:
+            self.model_dir = model_dir
+
         self._log_dir = ""
         self._checkpoint_path = ""
         self.set_log_dir()
+        self._build_logger(log_in_file)
         self.epoch = 0
         self._anchor_cache = {}
         self.is_compiled = False
         self.keras_model = self.build(mode=mode, config=config)
+
+    def _build_logger(self, log_in_file):
+        self._logger = logging.getLogger('MaskRCNN')
+        self._logger.setLevel(logging.DEBUG)
+
+        if log_in_file:
+            level = logging.DEBUG
+            if not os.path.exists(self._log_dir):
+                os.system("mkdir '{}'".format(self._log_dir))
+            path_to_log = os.path.join(self._log_dir, self.mode + '.log')
+            handler = logging.FileHandler(filename=path_to_log, encoding='utf-8')
+        else:
+            level = logging.INFO
+            handler = logging.StreamHandler()
+
+        handler.setLevel(level)
+        formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+        handler.setFormatter(formatter)
+        self._logger.addHandler(handler)
 
     def rebuild_as(self, mode: str, config: Config = None):
         assert mode in ['training', 'inference']
@@ -296,6 +323,7 @@ class MaskRCNN:
         ]
         if not config.USE_RPN_ROIS:
             inputs.append(input_rois)
+
         outputs = [
             rpn_class_logits, rpn_class, rpn_bbox,
             mrcnn_class_logits, mrcnn_class, mrcnn_bbox, mrcnn_mask,
@@ -372,27 +400,42 @@ class MaskRCNN:
         # Image size must be dividable by 2 multiple times
         h, w = config.IMAGE_SHAPE[:2]
         if h / 2 ** 6 != int(h / 2 ** 6) or w / 2 ** 6 != int(w / 2 ** 6):
-            raise Exception("Image size must be dividable by 2 at least 6 times "
-                            "to avoid fractions when downscaling and upscaling."
-                            "For example, use 256, 320, 384, 448, 512, ... etc. ")
+            log_message = '''Image size must be dividable by 2 at least 6 times
+                            to avoid fractions when downscaling and upscaling.
+                            For example, use 256, 320, 384, 448, 512, ... etc.'''
+            self._logger.error(log_message)
+            raise Exception(log_message)
 
+        self._logger.info('Using config - {}'.format(self.config.display()))
+        self._logger.info('Building Mask R-CNN in {} architecture'.format(mode))
         # Inputs
         input_image = KL.Input(
-            shape=[None, None, config.IMAGE_SHAPE[2]], name="input_image")
+            shape=[None, None, config.IMAGE_SHAPE[2]], name="input_image"
+        )
 
-        input_image_meta = KL.Input(shape=[config.IMAGE_META_SIZE],
-                                    name="input_image_meta")
-        if mode == "training":
-            model = self._build_training_architecture(
-                config, input_image, input_image_meta
+        input_image_meta = KL.Input(
+            shape=[config.IMAGE_META_SIZE],
+            name="input_image_meta"
+        )
+
+        try:
+            if mode == "training":
+                model = self._build_training_architecture(
+                    config, input_image, input_image_meta
+                )
+            else:
+                model = self._build_inference_architecture(
+                    config, input_image, input_image_meta
+                )
+        except Exception as ex:
+            self._logger.error(
+                'Error building Mask R-CNN architecture in mode {} - {}'.format(mode, ex),
+                exc_info=True
             )
-        else:
-            model = self._build_inference_architecture(
-                config, input_image, input_image_meta
-            )
+            raise ex
 
         # Add multi-GPU support.
-        if config.GPU_COUNT > 1:
+        if config.GPU_COUNT > 1 and config.USE_PARALLEL_MODEL:
             from .parallel_model import ParallelModel
             model = ParallelModel(model, config.GPU_COUNT)
 
@@ -411,9 +454,13 @@ class MaskRCNN:
         dir_names = sorted(dir_names)
         if not dir_names:
             import errno
+            self._logger.error(
+                "Could not find model directory under {}".format(self.model_dir)
+            )
             raise FileNotFoundError(
                 errno.ENOENT,
-                "Could not find model directory under {}".format(self.model_dir))
+                "Could not find model directory under {}".format(self.model_dir)
+            )
         # Pick last directory
         dir_name = os.path.join(self.model_dir, dir_names[-1])
         # Find the last checkpoint
@@ -422,8 +469,12 @@ class MaskRCNN:
         checkpoints = sorted(checkpoints)
         if not checkpoints:
             import errno
+            self._logger.error(
+                "Could not find weight files in {}".format(dir_name)
+            )
             raise FileNotFoundError(
-                errno.ENOENT, "Could not find weight files in {}".format(dir_name))
+                errno.ENOENT, "Could not find weight files in {}".format(dir_name)
+            )
         checkpoint = os.path.join(dir_name, checkpoints[-1])
         return checkpoint
 
@@ -438,18 +489,23 @@ class MaskRCNN:
         some layers from loading.
         exclude: list of layer names to exclude
         """
+        self._logger.info('Starting load weights - filepath: {} - type: {}'.format(
+            filepath, init_with
+        ))
         if not filepath and not init_with:
-            raise 'Must be feeded one of the params'
+            raise Exception('Must be feeded one of the params')
         if not filepath:
             by_name = True
             assert init_with in ["coco", "imagenet", "last"],\
                 "init_with para must be coco, imagenet or last for the last trained model"
             if init_with == "imagenet":
+                self._logger.info('Downloading imagenet weights')
                 filepath = self.get_imagenet_weights()
             elif init_with == "coco":
                 # Load weights trained on MS COCO, but skip layers that
                 # are different due to the different number of classes
                 # See README for instructions to download the COCO weights
+                self._logger.info('Downloading COCO weights')
                 filepath = utilfunctions.download_trained_weights(filepath)
             elif init_with == "last":
                 # Load the last model you trained and continue training
@@ -457,11 +513,18 @@ class MaskRCNN:
 
         # In multi-GPU training, we wrap the model. Get layers
         # of the inner model because they have the weights.
-        print(f"Using weights {filepath}")
+        self._logger.info("Using weights {}".format(filepath))
         skip_mismatch = self.mode == 'training'
-        self.keras_model.load_weights(filepath, by_name=by_name, skip_mismatch=skip_mismatch)
-        # Update the log directory
-        self.set_log_dir(filepath)
+        try:
+            self.keras_model.load_weights(filepath, by_name=by_name, skip_mismatch=skip_mismatch)
+            # Update the log directory
+            self.set_log_dir(filepath)
+        except Exception as ex:
+            self._logger.error(
+                'Error when loading weights to MaskRCNNModel - {}'.format(ex),
+                exc_info=True
+            )
+            raise ex
 
     def load_weights_h5py(self, filepath, by_name=False, exclude=None):
         """Modified version of the corresponding Keras function with
@@ -562,7 +625,7 @@ class MaskRCNN:
 
     def _get_optimizer(self, learning_rate, momentum):
         optimizer = self.config.OPTIMIZER
-        print("Using {} optimizer".format(optimizer))
+        self._logger.info("Using {} optimizer".format(optimizer))
         if optimizer == 'SGD':
             return keras.optimizers.SGD(
                 learning_rate=learning_rate,
@@ -582,11 +645,11 @@ class MaskRCNN:
                 clipnorm=self.config.GRADIENT_CLIP_NORM,
             )
 
-    def compile(self, learning_rate, momentum, limit_device=False):
+    def compile(self, learning_rate: float, momentum: float, limit_device=False):
         """Gets the model ready for training. Adds losses, regularization, and
         metrics. Then calls the Keras compile() function.
         """
-
+        self._logger.info("Building compiler")
         if limit_device:
             gpus = tf.config.experimental.list_physical_devices('GPU')
             try:
@@ -594,52 +657,61 @@ class MaskRCNN:
                     gpus[0],
                     [tf.config.experimental.VirtualDeviceConfiguration(memory_limit=1024)]
                 )
-            except Exception as e:
-                raise e
+            except Exception as ex:
+                self._logger.error('Error when limiting device - {}'.format(ex), exc_info=True)
+                raise ex
 
-        # Optimizer object
-        optimizer = self._get_optimizer(learning_rate, momentum)
+        try:
+            # Optimizer object
+            optimizer = self._get_optimizer(learning_rate, momentum)
 
-        # Add Losses
-        loss_names = [
-            "rpn_class_loss", "rpn_bbox_loss",
-            "mrcnn_class_loss", "mrcnn_bbox_loss", "mrcnn_mask_loss"
-        ]
-        if not self.is_compiled:
-            for name in loss_names:
-                layer = self.keras_model.get_layer(name)
-                if name == "mrcnn_class_loss":
-                    calc_loss = (tf.reshape(
-                        tf.reduce_mean(layer.output, keepdims=True) * self.config.LOSS_WEIGHTS.get(name, 1.), []
-                    ))
-                else:
-                    calc_loss = (tf.reduce_mean(layer.output, keepdims=True) * self.config.LOSS_WEIGHTS.get(name, 1.))
-                self.keras_model.add_loss(
-                    calc_loss
-                )
-
-        losses_functions = [None] * len(self.keras_model.outputs)
-        # Add L2 Regularization
-        # Skip gamma and beta weights of batch normalization layers.
-        if self.config.OPTIMIZER == 'SGD' and not self.is_compiled:
-            self.keras_model.add_loss(
-                lambda: tf.add_n([
-                    keras.regularizers.l2(self.config.WEIGHT_DECAY)(w) / tf.cast(tf.size(input=w), tf.float32)
-                    for w in self.keras_model.trainable_weights
-                    if 'gamma' not in w.name and 'beta' not in w.name]
-                )
-            )
-        else:
-            losses_functions = [
-                "categorical_crossentropy" if output.name in loss_names else None
-                for output in self.keras_model.outputs
+            # Add Losses
+            loss_names = [
+                "rpn_class_loss", "rpn_bbox_loss",
+                "mrcnn_class_loss", "mrcnn_bbox_loss", "mrcnn_mask_loss"
             ]
-        # Compile
-        self.keras_model.compile(
-            optimizer=optimizer,
-            loss=losses_functions
-        )
-        self.is_compiled = True
+            if not self.is_compiled:
+                for name in loss_names:
+                    layer = self.keras_model.get_layer(name)
+                    if name == "mrcnn_class_loss":
+                        calc_loss = (tf.reshape(
+                            tf.reduce_mean(layer.output, keepdims=True) * self.config.LOSS_WEIGHTS.get(name, 1.), []
+                        ))
+                    else:
+                        calc_loss = (tf.reduce_mean(layer.output, keepdims=True) * self.config.LOSS_WEIGHTS.get(name, 1.))
+                    self.keras_model.add_loss(
+                        calc_loss
+                    )
+
+            losses_functions = [None] * len(self.keras_model.outputs)
+            # Add L2 Regularization
+            # Skip gamma and beta weights of batch normalization layers.
+            if self.config.OPTIMIZER == 'SGD' and not self.is_compiled:
+                self.keras_model.add_loss(
+                    lambda: tf.add_n([
+                        keras.regularizers.l2(self.config.WEIGHT_DECAY)(w) / tf.cast(tf.size(input=w), tf.float32)
+                        for w in self.keras_model.trainable_weights
+                        if 'gamma' not in w.name and 'beta' not in w.name]
+                    )
+                )
+            else:
+                losses_functions = [
+                    "categorical_crossentropy" if output.name in loss_names else None
+                    for output in self.keras_model.outputs
+                ]
+            # Compile
+            self.keras_model.compile(
+                optimizer=optimizer,
+                loss=losses_functions
+            )
+            self.is_compiled = True
+            self._logger.info("Model compiled successfully!")
+        except Exception as ex:
+            self._logger.error(
+                "Error when building compiler - {}".format(ex),
+                exc_info=True
+            )
+            raise ex
 
     def set_trainable(self, layer_regex, keras_model=None, indent=0, verbose=1):
         """Sets model layers as trainable if their names match
@@ -719,6 +791,13 @@ class MaskRCNN:
             "*epoch*", "{epoch:04d}"
         )
 
+    def _write_history(self, history: dict):
+        file_path = os.path.join(
+            self._log_dir, 'history{}.json'.format(self.epoch)
+        )
+        with open(file_path, 'w') as f:
+            f.write(json.dumps(history.history))
+
     def train(
             self,
             train_dataset,
@@ -794,7 +873,9 @@ class MaskRCNN:
             keras.callbacks.TensorBoard(log_dir=self._log_dir,
                                         histogram_freq=0, write_graph=True, write_images=False),
             keras.callbacks.ModelCheckpoint(self._checkpoint_path,
-                                            verbose=0, save_weights_only=True)
+                                            verbose=0, save_weights_only=True),
+            LoggerTraining(logger=self._logger),
+
         ]
 
         if use_clear_memory:
@@ -811,11 +892,10 @@ class MaskRCNN:
             callbacks += custom_callbacks
 
         # Train
-        utilfunctions.log("\nStarting at epoch {}. LR={}\n".format(self.epoch, learning_rate))
-        print("Checkpoint Path: {}".format(self._checkpoint_path))
+        self._logger.info("Starting at epoch {}. LR={}".format(self.epoch, learning_rate))
+        self._logger.info("Checkpoint Path: {}".format(self._checkpoint_path))
         self.set_trainable(layers)
         self.compile(learning_rate, self.config.LEARNING_MOMENTUM)
-        print("Model Compiled Successfully")
 
         # Work-around for Windows: Keras fails on Windows when using
         # multiprocessing workers. See discussion here:
@@ -831,21 +911,27 @@ class MaskRCNN:
                 self._log_dir + '/train-ops-logs',
                 tensor_debug_mode="FULL_HEALTH"
             )
-        history = self.keras_model.fit(
-            train_generator,
-            epochs=epochs,
-            steps_per_epoch=self.config.STEPS_PER_EPOCH,
-            callbacks=callbacks,
-            validation_data=val_generator,
-            validation_steps=self.config.VALIDATION_STEPS,
-            max_queue_size=100,
-            workers=workers,
-            use_multiprocessing=True,
-            verbose=1,
-            batch_size=self.config.BATCH_SIZE,
-        )
-        self.epoch = max(self.epoch, epochs)
-        return history
+
+        try:
+            history = self.keras_model.fit(
+                train_generator,
+                epochs=epochs,
+                steps_per_epoch=self.config.STEPS_PER_EPOCH,
+                callbacks=callbacks,
+                validation_data=val_generator,
+                validation_steps=self.config.VALIDATION_STEPS,
+                max_queue_size=100,
+                workers=workers,
+                use_multiprocessing=True,
+                verbose=1,
+                batch_size=self.config.BATCH_SIZE,
+            )
+            self.epoch = max(self.epoch, epochs)
+            self._write_history(history)
+            return history
+        except Exception as ex:
+            self._logger.error('Error when training Mask R-CNN {}'.format(ex), exc_info=True)
+            raise ex
 
     def train_directly(self, x, y, learning_rate, epochs, layers,
               augmentation=None, custom_callbacks=None, no_augmentation_sources=None):
@@ -880,11 +966,10 @@ class MaskRCNN:
             callbacks += custom_callbacks
 
         # Train
-        utilfunctions.log("\nStarting at epoch {}. LR={}\n".format(self.epoch, learning_rate))
-        utilfunctions.log("Checkpoint Path: {}".format(self._checkpoint_path))
+        self._logger.info("Starting at epoch {}. LR={}".format(self.epoch, learning_rate))
+        self._logger.info("Checkpoint Path: {}".format(self._checkpoint_path))
         self.set_trainable(layers)
         self.compile(learning_rate, self.config.LEARNING_MOMENTUM)
-        print("Model Compiled Successfully")
 
         # Work-around for Windows: Keras fails on Windows when using
         # multiprocessing workers. See discussion here:
@@ -922,12 +1007,12 @@ class MaskRCNN:
         windows: [N, (y1, x1, y2, x2)]. The portion of the image that has the
             original image (padding excluded).
         """
+        self._logger.info('Molding input images')
         molded_images = []
         image_metas = []
         windows = []
         for image in images:
             # Resize image
-            # TODO: move resizing to mold_image()
             molded_image, window, scale, padding, crop = utilfunctions.resize_image(
                 image,
                 min_dim=self.config.IMAGE_MIN_DIM,
@@ -948,10 +1033,10 @@ class MaskRCNN:
         molded_images = np.stack(molded_images)
         image_metas = np.stack(image_metas)
         windows = np.stack(windows)
+        self._logger.info('Input image molded successfully!')
         return molded_images, image_metas, windows
 
-    @staticmethod
-    def unmold_detections(detections, mrcnn_mask, original_image_shape,
+    def unmold_detections(self, detections, mrcnn_mask, original_image_shape,
                           image_shape, window):
         """Reformats the detections of one image from the format of the neural
         network output to a format suitable for use in the rest of the
@@ -1009,7 +1094,13 @@ class MaskRCNN:
         full_masks = []
         for i in range(N):
             # Convert neural network mask to full size mask
-            full_mask = utilfunctions.unmold_mask(masks[i], boxes[i], original_image_shape)
+            full_mask = utilfunctions.unmold_mask(
+                masks[i], boxes[i], original_image_shape,
+                interpolation_method=self.config.INTERPOLATION_METHOD,
+                use_skimage_resize=self.config.USE_MASK_MODIFIER,
+                skimage_resize_order=0 if self.config.USE_MASK_MODIFIER else 1,
+                mask_modifier=self.config.USE_MASK_MODIFIER
+            )
             full_masks.append(full_mask)
 
         full_masks = np.stack(full_masks, axis=-1) \
@@ -1031,10 +1122,7 @@ class MaskRCNN:
         assert self.mode == "inference", "Create model in inference mode."
         assert len(images) == self.config.BATCH_SIZE, "len(images) must be equal to BATCH_SIZE"
 
-        if verbose:
-            utilfunctions.log("Processing {} images".format(len(images)))
-            for image in images:
-                utilfunctions.log("image", image)
+        self._logger.info("Processing {} images".format(len(images)))
 
         # Mold inputs to format expected by the neural network
         molded_images, image_metas, windows = self.mold_inputs(images)
@@ -1043,20 +1131,21 @@ class MaskRCNN:
         # All images in a batch MUST be of the same size
         image_shape = molded_images[0].shape
         for g in molded_images[1:]:
-            assert g.shape == image_shape,\
-                "After resizing, all images must have the same size. Check IMAGE_RESIZE_MODE and image sizes."
+            if g.shape == image_shape:
+                log_msg = '''After resizing, all images must have the same size.
+                Check IMAGE_RESIZE_MODE and image sizes.'''
+                self._logger.info(log_msg)
+                raise Exception(log_msg)
 
         # Anchors
         anchors = self.get_anchors(image_shape)
         anchors = np.broadcast_to(anchors, (self.config.BATCH_SIZE,) + anchors.shape)
-        # np.save("image_metas.npy", image_metas)
-        # np.save("anchors.npy", anchors)
-        # np.save("molded_images.npy", molded_images)
 
-        if verbose:
-            utilfunctions.log("molded_images", molded_images)
-            utilfunctions.log("image_metas", image_metas)
-            utilfunctions.log("anchors", anchors)
+        self._logger.info("molded_images data ->  shape: {} - min: {} - max: {}".format(
+            molded_images.shape, molded_images.min(), molded_images.max())
+        )
+        self._logger.info("image_metas: {}".format(image_metas))
+        self._logger.info("anchors: {}".format(anchors))
 
         # Run object detection
         return self._process_detections(
@@ -1065,9 +1154,18 @@ class MaskRCNN:
         )
 
     def _process_detections(self, images, molded_images, image_metas, anchors, windows=None, verbose=0):
-        detections, _, _, mrcnn_mask, _, _, _ = self.keras_model.predict(
-            [molded_images, image_metas, anchors], verbose=verbose
-        )
+        self._logger.info('Inserting input data into Mask RCNN')
+        try:
+            detections, _, _, mrcnn_mask, _, _, _ = self.keras_model.predict(
+                [molded_images, image_metas, anchors], verbose=verbose
+            )
+        except Exception as ex:
+            self._logger.error(
+                'Error when calling predict from MaskRCNNModel - {}'.format(ex),
+                exc_info=True,
+            )
+            raise ex
+        self._logger.info('Predicted successfully!')
 
         # Process detections
         results = []

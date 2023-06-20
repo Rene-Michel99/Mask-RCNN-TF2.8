@@ -72,26 +72,6 @@ def apply_mask(image, mask, color, alpha=0.5):
     return image
 
 
-def mask_uniform(mask, eps=0.0101):
-    new_mask = np.zeros((mask.shape[0], mask.shape[1], 3), dtype=np.uint8)
-    mask = mask.astype(np.uint8)
-
-    cnts = cv.findContours(mask.copy(), cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE)
-    cnts = imutils.grab_contours(cnts)
-    c = max(cnts, key=cv.contourArea)
-
-    peri = cv.arcLength(c, True)
-    approx = cv.approxPolyDP(c, eps * peri, True)
-    cv.drawContours(new_mask, [approx], -1, (255, 255, 255), thickness=cv.FILLED)
-    return cv.cvtColor(new_mask, cv.COLOR_BGR2GRAY)
-
-
-def mask_suavization(mask, ksize=(13, 13), sigma_x=7):
-    mask = mask.astype(np.uint8)
-    suavizated_mask = cv.GaussianBlur(mask, ksize=ksize, sigmaX=sigma_x, sigmaY=sigma_x)
-    return suavizated_mask
-
-
 def display_instances(image, boxes, masks, class_ids, class_names,
                       scores=None, title="",
                       figsize=(16, 16), ax=None,

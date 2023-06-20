@@ -106,6 +106,9 @@ class Config(object):
          False: Freeze BN layers. Good when using a small batch size
          True: (don't use). Set layer in training mode even when predicting
        - gradient_clip_norm: Gradient norm clipping
+       - use_parallel_model: Use or not a parallel model, this requires a second GPU
+       - use_mask_modifier: Use a mask method manipulator to make mask looks like polygon
+         or other shape
     """
 
     def __init__(
@@ -161,6 +164,8 @@ class Config(object):
             use_rpn_rois=True,                     # type: bool
             train_bn=False,                        # type: bool
             gradient_clip_norm=5.0,                # type: float
+            use_parallel_model=False,              # type: bool
+            use_mask_modifier=None,                # type: Union[str, Callable]
     ):
         """Set values of computed attributes."""
         self.NUM_CLASSES = 1 + num_classes
@@ -201,9 +206,14 @@ class Config(object):
         self.USE_RPN_ROIS = use_rpn_rois
         self.TRAIN_BN = train_bn
         self.GRADIENT_CLIP_NORM = gradient_clip_norm
+        self.USE_PARALLEL_MODEL = use_parallel_model
+        self.USE_MASK_MODIFIER = use_mask_modifier
 
         assert optimizer in ["SGD"], "Optimizer not allowed"
         self.OPTIMIZER = optimizer
+
+        if use_mask_modifier:
+            self.INTERPOLATION_METHOD = 'bilinear'
 
         if not backbone_strides:
             self.BACKBONE_STRIDES = [4, 8, 16, 32, 64]
@@ -258,10 +268,7 @@ class Config(object):
 
     def display(self):
         """Display Configuration values."""
-        print("\nConfigurations:")
+        log = "\nConfigurations:"
         for key, val in self.to_dict().items():
-            print("{} {}".format(key, val))
-        # for a in dir(self):
-        #     if not a.startswith("__") and not callable(getattr(self, a)):
-        #         print("{:30} {}".format(a, getattr(self, a)))
-        print("\n")
+            log += "{} {}\n".format(key, val)
+        return log

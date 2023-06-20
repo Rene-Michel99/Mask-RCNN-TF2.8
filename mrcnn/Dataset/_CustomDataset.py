@@ -10,11 +10,13 @@ class CustomDataset(Dataset):
         See http://cocodataset.org/#home for more information.
     """
 
-    def load_custom(self, annotation_json, images_dir, dataset_type="train"):
+    def load_custom(self, annotation_json, images_dir, dataset_type="train", split_train_test=0):
         """ Load the coco-like dataset from json
         Args:
             annotation_json: The path to the coco annotations json file
             images_dir: The directory holding the images referred to by the json file
+            dataset_type: Type of dataset (train, test, validation). But can be any string
+            split_train_test: Float to split dataset in train test. If is 0 then no split is applied
         """
 
         # Load json from file
@@ -23,8 +25,6 @@ class CustomDataset(Dataset):
         coco_json = json.load(json_file)
         json_file.close()
 
-
-        # Add the class names using the base method from Utils.Dataset
         source_name = "coco_like"
         for category in coco_json['categories']:
             class_id = category['id']
@@ -48,10 +48,10 @@ class CustomDataset(Dataset):
 
         # Split the dataset, if train, get 90%, else 10%
         len_images = len(coco_json['images'])
-        if dataset_type == "train":
-            img_range = [int(len_images / 9), len_images]
+        if split_train_test > 0:
+            img_range = [int(len_images / split_train_test), len_images]
         else:
-            img_range = [0, int(len_images / 9)]
+            img_range = [0, len_images]
 
         for i in range(img_range[0], img_range[1]):
             image = coco_json['images'][i]
@@ -122,10 +122,3 @@ class CustomDataset(Dataset):
 
         class_number = len(class_ids)
         return class_number
-
-
-def load_images_dataset(annotation_path: str, dataset_path: str, dataset_type: str):
-    dataset_train = CustomDataset()
-    dataset_train.load_custom(annotation_path, dataset_path, dataset_type)
-    dataset_train.prepare()
-    return dataset_train
