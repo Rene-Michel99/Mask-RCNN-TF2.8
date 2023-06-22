@@ -76,8 +76,11 @@ def compose_image_meta(image_id, original_image_shape, image_shape,
 def compute_backbone_shapes(config, image_shape):
     """Computes the width and height of each stage of the backbone network.
 
-    Returns:
-        [N, (height, width)]. Where N is the number of stages
+    Params:
+    - config: Configuration object.
+    - image_shape: Shape of input image.
+
+    Returns: [N, (height, width)]. Where N is the number of stages
     """
     if callable(config.BACKBONE):
         return config.COMPUTE_BACKBONE_SHAPE(image_shape)
@@ -302,13 +305,15 @@ def resize_image(
 ):
     """Resizes an image keeping the aspect ratio unchanged.
 
-    min_dim: if provided, resizes the image such that it's smaller
+    Params:
+    - image: [width, height, channel] image.
+    - min_dim: if provided, resizes the image such that it's smaller
         dimension == min_dim
-    max_dim: if provided, ensures that the image longest side doesn't
+    - max_dim: if provided, ensures that the image longest side doesn't
         exceed this value.
-    min_scale: if provided, ensure that the image is scaled up by at least
+    - min_scale: if provided, ensure that the image is scaled up by at least
         this percent even if min_dim doesn't require it.
-    mode: Resizing mode.
+    - mode: Resizing mode.
         none: No resizing. Return the image unchanged.
         square: Resize and pad with zeros to get a square image
             of size [max_dim, max_dim].
@@ -322,14 +327,14 @@ def resize_image(
               size min_dim x min_dim. Can be used in training only.
               max_dim is not used in this mode.
 
-    Returns:
-    image: the resized image
-    window: (y1, x1, y2, x2). If max_dim is provided, padding might
+    Returns: Tuple of
+    - image: the resized image
+    - window: (y1, x1, y2, x2). If max_dim is provided, padding might
         be inserted in the returned image. If so, this window is the
         coordinates of the image part of the full image (excluding
         the padding). The x2, y2 pixels are not included.
-    scale: The scale factor used to resize the image
-    padding: Padding added to the image [(top, bottom), (left, right), (0, 0)]
+    - scale: The scale factor used to resize the image
+    - padding: Padding added to the image [(top, bottom), (left, right), (0, 0)]
     """
     # Keep track of image dtype and return results in the same dtype
     image_dtype = image.dtype
@@ -592,8 +597,7 @@ def generate_pyramid_anchors(scales, ratios, feature_shapes, feature_strides,
     is associated with a level of the pyramid, but each ratio is used in
     all levels of the pyramid.
 
-    Returns:
-    anchors: [N, (y1, x1, y2, x2)]. All generated anchors in one array. Sorted
+    Returns: anchors: [N, (y1, x1, y2, x2)]. All generated anchors in one array. Sorted
         with the same order of the given scales. So, anchors of scale[0] come
         first, then anchors of scale[1], and so on.
     """
@@ -625,7 +629,7 @@ def compute_matches(gt_boxes, gt_class_ids, gt_masks,
                     iou_threshold=0.5, score_threshold=0.0):
     """Finds matches between prediction and ground truth instances.
 
-    Returns:
+    Returns: Tuple of
         gt_match: 1-D array. For each GT box it has the index of the matched
                   predicted box.
         pred_match: 1-D array. For each predicted box, it has the index of
@@ -684,11 +688,11 @@ def compute_ap(gt_boxes, gt_class_ids, gt_masks,
                iou_threshold=0.5):
     """Compute Average Precision at a set IoU threshold (default 0.5).
 
-    Returns:
-    mAP: Mean Average Precision
-    precisions: List of precisions at different class score thresholds.
-    recalls: List of recall values at different class score thresholds.
-    overlaps: [pred_boxes, gt_boxes] IoU overlaps.
+    Returns: Tuple of
+    - mAP: Mean Average Precision
+    - precisions: List of precisions at different class score thresholds.
+    - recalls: List of recall values at different class score thresholds.
+    - overlaps: [pred_boxes, gt_boxes] IoU overlaps.
     """
     # Get matches and overlaps
     gt_match, pred_match, overlaps = compute_matches(
@@ -876,14 +880,15 @@ def download_trained_weights(coco_model_path=None, verbose=1) -> str:
 
 def norm_boxes(boxes, shape):
     """Converts boxes from pixel coordinates to normalized coordinates.
-    boxes: [N, (y1, x1, y2, x2)] in pixel coordinates
-    shape: [..., (height, width)] in pixels
+
+    Params:
+    - boxes: [N, (y1, x1, y2, x2)] in pixel coordinates
+    - shape: [..., (height, width)] in pixels
 
     Note: In pixel coordinates (y2, x2) is outside the box. But in normalized
     coordinates it's inside the box.
 
-    Returns:
-        [N, (y1, x1, y2, x2)] in normalized coordinates
+    Returns: [N, (y1, x1, y2, x2)] in normalized coordinates
     """
     h, w = shape
     scale = np.array([h - 1, w - 1, h - 1, w - 1])
@@ -893,14 +898,15 @@ def norm_boxes(boxes, shape):
 
 def denorm_boxes(boxes, shape):
     """Converts boxes from normalized coordinates to pixel coordinates.
-    boxes: [N, (y1, x1, y2, x2)] in normalized coordinates
-    shape: [..., (height, width)] in pixels
+
+    Params:
+    - boxes: [N, (y1, x1, y2, x2)] in normalized coordinates
+    - shape: [..., (height, width)] in pixels
 
     Note: In pixel coordinates (y2, x2) is outside the box. But in normalized
     coordinates it's inside the box.
 
-    Returns:
-        [N, (y1, x1, y2, x2)] in pixel coordinates
+    Returns: [N, (y1, x1, y2, x2)] in pixel coordinates
     """
     h, w = shape
     scale = np.array([h - 1, w - 1, h - 1, w - 1])

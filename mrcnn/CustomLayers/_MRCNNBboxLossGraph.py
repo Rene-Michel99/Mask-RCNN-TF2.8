@@ -11,10 +11,13 @@ class MRCNNBboxLossGraph(tf.keras.layers.Layer):
     def call(self, inputs):
         """Loss for Mask R-CNN bounding box refinement.
 
-            target_bbox: [batch, num_rois, (dy, dx, log(dh), log(dw))]
-            target_class_ids: [batch, num_rois]. Integer class IDs.
-            pred_bbox: [batch, num_rois, num_classes, (dy, dx, log(dh), log(dw))]
-            """
+        Params:
+        - target_bbox: [batch, num_rois, (dy, dx, log(dh), log(dw))].
+        - target_class_ids: [batch, num_rois] Integer class IDs.
+        - pred_bbox: [batch, num_rois, num_classes, (dy, dx, log(dh), log(dw))].
+
+        Returns: Float loss of MRCNN BBOX.
+        """
         target_bbox = inputs[0]
         target_class_ids = inputs[1]
         pred_bbox = inputs[2]

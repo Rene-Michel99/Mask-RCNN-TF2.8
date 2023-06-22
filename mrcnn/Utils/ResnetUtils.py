@@ -112,18 +112,17 @@ def identity_block(input_tensor, kernel_size, filters, stage, block,
 def block2(x, filters, kernel_size=3, first_layers_stride=1, conv_shortcut=False, name=None, train_bn=False):
     """A residual block.
 
-    Args:
-        x: input tensor.
-        filters: integer, filters of the bottleneck layer.
-        kernel_size: default 3, kernel size of the bottleneck layer.
-        first_layers_stride: default 1, stride of the first layer.
-        conv_shortcut: default False, use convolution shortcut if True,
+    Parms:
+        - x: input tensor.
+        - filters: integer, filters of the bottleneck layer.
+        - kernel_size: default 3, kernel size of the bottleneck layer.
+        - first_layers_stride: default 1, stride of the first layer.
+        - conv_shortcut: default False, use convolution shortcut if True,
           otherwise identity shortcut.
-        name: string, block label.
-        train_bn: bool
+        - name: string, block label.
+        - train_bn: bool
 
-    Returns:
-      Output tensor for the residual block.
+    Returns: Output tensor for the residual block.
     """
 
     preact = BatchNorm(name=name + '_bn2', epsilon=1.001e-5)(x, training=train_bn) # noqa
@@ -163,17 +162,16 @@ def block2(x, filters, kernel_size=3, first_layers_stride=1, conv_shortcut=False
 def block1(x, filters, kernel_size=3, stride=1, conv_shortcut=False, name=None):
     """A residual block.
 
-    Args:
-      x: input tensor.
-      filters: integer, filters of the bottleneck layer.
-      kernel_size: default 3, kernel size of the bottleneck layer.
-      stride: default 1, stride of the first layer.
-      conv_shortcut: default True, use convolution shortcut if True,
+    Params:
+      - x: input tensor.
+      - filters: integer, filters of the bottleneck layer.
+      - kernel_size: default 3, kernel size of the bottleneck layer.
+      - stride: default 1, stride of the first layer.
+      - conv_shortcut: default True, use convolution shortcut if True,
           otherwise identity shortcut.
-      name: string, block label.
+      - name: string, block label.
 
-    Returns:
-      Output tensor for the residual block.
+    Returns: Output tensor for the residual block.
     """
     bn_axis = 3
 
@@ -214,16 +212,15 @@ def block1(x, filters, kernel_size=3, stride=1, conv_shortcut=False, name=None):
 def stack2(x, filters, blocks, first_layers_stride=1, stride=2, name=None, train_bn=False):
     """A set of stacked residual blocks.
 
-    Args:
-      x: input tensor.
-      filters: integer, filters of the bottleneck layer in a block.
-      blocks: integer, blocks in the stacked blocks.
-      stride1: default 2, stride of the first layer in the first block.
-      name: string, stack label.
-      train_bn: bool, train or not BatchNormalization
+    Params:
+      - x: input tensor.
+      - filters: integer, filters of the bottleneck layer in a block.
+      - blocks: integer, blocks in the stacked blocks.
+      - stride1: default 2, stride of the first layer in the first block.
+      - name: string, stack label.
+      - train_bn: bool, train or not BatchNormalization
 
-    Returns:
-      Output tensor for the stacked blocks.
+    Returns: Output tensor for the stacked blocks.
     """
     x = block2(x, filters, conv_shortcut=True, name=name + "_block1", train_bn=train_bn)
     for i in range(2, blocks):
@@ -235,15 +232,14 @@ def stack2(x, filters, blocks, first_layers_stride=1, stride=2, name=None, train
 def stack1(x, filters, blocks, stride1=2, name=None):
     """A set of stacked residual blocks.
 
-    Args:
-      x: input tensor.
-      filters: integer, filters of the bottleneck layer in a block.
-      blocks: integer, blocks in the stacked blocks.
-      stride1: default 2, stride of the first layer in the first block.
-      name: string, stack label.
+    Params:
+      - x: input tensor.
+      - filters: integer, filters of the bottleneck layer in a block.
+      - blocks: integer, blocks in the stacked blocks.
+      - stride1: default 2, stride of the first layer in the first block.
+      - name: string, stack label.
 
-    Returns:
-      Output tensor for the stacked blocks.
+    Returns: Output tensor for the stacked blocks.
     """
     x = block1(x, filters, stride=stride1, conv_shortcut=True, name=name + "_block1")
     for i in range(2, blocks + 1):

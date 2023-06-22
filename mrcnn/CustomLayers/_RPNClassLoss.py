@@ -9,10 +9,13 @@ class RPNClassLoss(tf.keras.layers.Layer):
     @tf.function
     def call(self, inputs):
         """RPN anchor classifier loss.
-            rpn_match: [batch, anchors, 1]. Anchor match type. 1=positive,
-                       -1=negative, 0=neutral anchor.
-            rpn_class_logits: [batch, anchors, 2]. RPN classifier logits for BG/FG.
-            """
+
+        Params:
+        - rpn_match: [batch, anchors, 1]. Anchor match type 1=positive, -1=negative, 0=neutral anchor.
+        - rpn_class_logits: [batch, anchors, 2]. RPN classifier logits for BG/FG.
+
+        Returns: Float of loss of RPN Classifier
+        """
         # Squeeze last dim to simplify
         rpn_match = tf.squeeze(inputs[0], -1)
         rpn_class_logits = inputs[1]

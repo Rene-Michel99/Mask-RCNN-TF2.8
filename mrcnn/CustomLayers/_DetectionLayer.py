@@ -1,11 +1,12 @@
 import tensorflow as tf
 from ._Interface import Interface
 from ._Common import norm_boxes_graph, refine_detections_graph
+from mrcnn.Configs import Config
 from mrcnn.Utils.utilfunctions import batch_slice, parse_image_meta_graph
 
 
 class DetectionInterface(Interface):
-    def __init__(self, config):
+    def __init__(self, config: Config):
         self.BBOX_STD_DEV = config.BBOX_STD_DEV
         self.DETECTION_MIN_CONFIDENCE = config.DETECTION_MIN_CONFIDENCE
         self.DETECTION_MAX_INSTANCES = config.DETECTION_MAX_INSTANCES
@@ -18,12 +19,11 @@ class DetectionLayer(tf.keras.layers.Layer):
     """Takes classified proposal boxes and their bounding box deltas and
     returns the final detection boxes.
 
-    Returns:
-    [batch, num_detections, (y1, x1, y2, x2, class_id, class_score)] where
+    Returns: [batch, num_detections, (y1, x1, y2, x2, class_id, class_score)] where
     coordinates are normalized.
     """
 
-    def __init__(self, config, **kwargs):
+    def __init__(self, config: Config, **kwargs):
         super(DetectionLayer, self).__init__(**kwargs)
         self.interface = DetectionInterface(config)
 
@@ -34,6 +34,17 @@ class DetectionLayer(tf.keras.layers.Layer):
 
     @tf.function
     def call(self, inputs):
+        """ The input is a list of params
+
+        Params:
+        - rois: ProposalLayer object
+        - mrcnn_class: KL.TimeDistributed(KL.Activation("softmax")). Classifier probabilities
+        - mrcnn_bbox: KL.Reshape. Deltas to apply to proposal boxes
+        - image_meta: KL.Input. Image details
+
+        Returns: A reshaped [batch, num_detections, (y1, x1, y2, x2, class_id, class_score)] in normalized
+            coordinates
+        """
         rois = inputs[0]
         mrcnn_class = inputs[1]
         mrcnn_bbox = inputs[2]
@@ -51,7 +62,8 @@ class DetectionLayer(tf.keras.layers.Layer):
         detections_batch = self.batch_slice(
             [rois, mrcnn_class, mrcnn_bbox, window],
             lambda x, y, w, z: self.refine_detections_graph(x, y, w, z, self.interface),
-            self.interface.IMAGES_PER_GPU)
+            self.interface.IMAGES_PER_GPU
+        )
 
         # Reshape output
         # [batch, num_detections, (y1, x1, y2, x2, class_id, class_score)] in

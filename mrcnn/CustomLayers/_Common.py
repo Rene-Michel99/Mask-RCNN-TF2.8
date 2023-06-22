@@ -118,14 +118,15 @@ def refine_detections_graph(rois, probs, deltas, window, config):
 @tf.function
 def norm_boxes_graph(boxes, shape):
     """Converts boxes from pixel coordinates to normalized coordinates.
-    boxes: [..., (y1, x1, y2, x2)] in pixel coordinates
-    shape: [..., (height, width)] in pixels
+
+    Params:
+    - boxes: [..., (y1, x1, y2, x2)] in pixel coordinates
+    - shape: [..., (height, width)] in pixels
 
     Note: In pixel coordinates (y2, x2) is outside the box. But in normalized
     coordinates it's inside the box.
 
-    Returns:
-        [..., (y1, x1, y2, x2)] in normalized coordinates
+    Returns: [..., (y1, x1, y2, x2)] in normalized coordinates
     """
     h, w = tf.split(tf.cast(shape, tf.float32), 2)
     scale = tf.concat([h, w, h, w], axis=-1) - tf.constant(1.0)
@@ -222,15 +223,16 @@ def smooth_l1_loss(y_true, y_pred, name=""):
 @tf.function
 def denorm_box(box, w, h):
     """Converts box from normalized coordinates to pixel coordinates.
-    box: [(y1, x1, y2, x2)] in normalized coordinates
-    w: width in pixels
-    h: height in pixels
+
+    Params:
+    - box: [(y1, x1, y2, x2)] in normalized coordinates
+    - w: width in pixels
+    - h: height in pixels
 
     Note: In pixel coordinates (y2, x2) is outside the box. But in normalized
     coordinates it's inside the box.
 
-    Returns:
-        [(y1, x1, y2, x2)] in pixel coordinates
+    Returns: [(y1, x1, y2, x2)] in pixel coordinates
     """
 
     scale = tf.convert_to_tensor([h, w, h, w], dtype=tf.float32)

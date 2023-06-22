@@ -77,14 +77,15 @@ class DataGenerator(KU.Sequence):
         """Given the anchors and GT boxes, compute overlaps and identify positive
         anchors and deltas to refine them to match their corresponding GT boxes.
 
-        anchors: [num_anchors, (y1, x1, y2, x2)]
-        gt_class_ids: [num_gt_boxes] Integer class IDs.
-        gt_boxes: [num_gt_boxes, (y1, x1, y2, x2)]
+        Params:
+        - anchors: [num_anchors, (y1, x1, y2, x2)]
+        - gt_class_ids: [num_gt_boxes] Integer class IDs.
+        - gt_boxes: [num_gt_boxes, (y1, x1, y2, x2)]
 
-        Returns:
-        rpn_match: [N] (int32) matches between anchors and GT boxes.
+        Returns: Tuple of rpn_match and rpn_bbox.
+        - rpn_match: [N] (int32) matches between anchors and GT boxes.
                    1 = positive anchor, -1 = negative anchor, 0 = neutral
-        rpn_bbox: [N, (dy, dx, log(dh), log(dw))] Anchor bbox deltas.
+        - rpn_bbox: [N, (dy, dx, log(dh), log(dw))] Anchor bbox deltas.
         """
         rpn_match = np.zeros([anchors.shape[0]], dtype=np.int32)
         # RPN bounding boxes: [max anchors per image, (dy, dx, log(dh), log(dw))]
@@ -186,10 +187,13 @@ class DataGenerator(KU.Sequence):
     def generate_random_rois(image_shape, count, gt_class_ids, gt_boxes):
         """Generates ROI proposals similar to what a region proposal network
         would generate.
-        image_shape: [Height, Width, Depth]
-        count: Number of ROIs to generate
-        gt_class_ids: [N] Integer ground truth class IDs
-        gt_boxes: [N, (y1, x1, y2, x2)] Ground truth boxes in pixels.
+
+        Params:
+        - image_shape: [Height, Width, Depth]
+        - count: Number of ROIs to generate
+        - gt_class_ids: [N] Integer ground truth class IDs
+        - gt_boxes: [N, (y1, x1, y2, x2)] Ground truth boxes in pixels.
+
         Returns: [count, (y1, x1, y2, x2)] ROI boxes in pixels.
         """
         # placeholder
@@ -260,18 +264,18 @@ class DataGenerator(KU.Sequence):
         the Mask RCNN heads without using the RPN head.
 
         Inputs:
-        rpn_rois: [N, (y1, x1, y2, x2)] proposal boxes.
-        gt_class_ids: [instance count] Integer class IDs
-        gt_boxes: [instance count, (y1, x1, y2, x2)]
-        gt_masks: [height, width, instance count] Ground truth masks. Can be full
+        - rpn_rois: [N, (y1, x1, y2, x2)] proposal boxes.
+        - gt_class_ids: [instance count] Integer class IDs
+        - gt_boxes: [instance count, (y1, x1, y2, x2)]
+        - gt_masks: [height, width, instance count] Ground truth masks. Can be full
                   size or mini-masks.
 
-        Returns:
-        rois: [TRAIN_ROIS_PER_IMAGE, (y1, x1, y2, x2)]
-        class_ids: [TRAIN_ROIS_PER_IMAGE]. Integer class IDs.
-        bboxes: [TRAIN_ROIS_PER_IMAGE, NUM_CLASSES, (y, x, log(h), log(w))]. Class-specific
+        Returns: Tuple of [rois, class_ids, bboxes, masks].
+        - rois: [TRAIN_ROIS_PER_IMAGE, (y1, x1, y2, x2)]
+        - class_ids: [TRAIN_ROIS_PER_IMAGE]. Integer class IDs.
+        - bboxes: [TRAIN_ROIS_PER_IMAGE, NUM_CLASSES, (y, x, log(h), log(w))]. Class-specific
                 bbox refinements.
-        masks: [TRAIN_ROIS_PER_IMAGE, height, width, NUM_CLASSES). Class specific masks cropped
+        - masks: [TRAIN_ROIS_PER_IMAGE, height, width, NUM_CLASSES). Class specific masks cropped
                to bbox boundaries and resized to neural network output size.
         """
         #gt_masks = gt_masks.astype(bool)

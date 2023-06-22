@@ -9,6 +9,7 @@ import tensorflow as tf
 import tensorflow.keras as keras
 import tensorflow.keras.backend as K
 import tensorflow.keras.layers as KL
+from typing import List, Union, Tuple
 
 from .Configs import Config
 from .Utils import utilfunctions
@@ -105,10 +106,20 @@ class MaskRCNN:
 
     @staticmethod
     def _build_shared_convolutional_layers(
-            config,
-            input_image,
-    ):
-        # Build the shared convolutional layers.
+            config: Config,
+            input_image: KL.Input,
+    ) -> Tuple[List[KL.Conv2D], List[KL.Conv2D]]:
+        """Build the shared convolutional layers.
+
+        Params:
+        - config: Configuration object
+        - input_image: Input layer of tensorflow for image
+
+        Returns: Tuple of [rpn_feature_maps, mrcnn_feature_maps]
+            - rpn_feature_maps: List of convolutional layers
+            - mrcnn_feature_maps: List of convolutional layers
+
+        """
         # Bottom-up Layers
         # Returns a list of the last layers of each stage, 5 in total.
         # Don't create the thead (stage 5), so we pick the 4th item in the list.
@@ -149,7 +160,21 @@ class MaskRCNN:
         return rpn_feature_maps, mrcnn_feature_maps
 
     @staticmethod
-    def _build_rpn_model(config, rpn_feature_maps):
+    def _build_rpn_model(
+            config: Config,
+            rpn_feature_maps: List[KL.Conv2D]
+    ):
+        """ Build rpn model.
+
+        Params:
+        - config: Configuration object
+        - rpn_feature_maps: List of Convolutional layers of RPN
+
+        Returns: Tuple of
+            - rpn_class_logits: KL.Lambda. Anchor classifier logits (before softmax)
+            - rpn_class: KL.Activation. RPN Classes classifier
+            - rpn_bbox: KL.Lambda. Deltas to be applied to anchors
+        """
         # RPN Model
         rpn = build_rpn_model(config.RPN_ANCHOR_STRIDE,
                               len(config.RPN_ANCHOR_RATIOS), config.TOP_DOWN_PYRAMID_SIZE)
@@ -171,12 +196,24 @@ class MaskRCNN:
 
     @staticmethod
     def _build_proposals(
-            config,
-            mode,
-            rpn_class,
-            rpn_bbox,
-            anchors
-    ):
+            config: Config,
+            mode: str,
+            rpn_class: KL.Activation,
+            rpn_bbox: KL.Lambda,
+            anchors: Union[KL.Input, GetAnchors]
+    ) -> ProposalLayer:
+        """ Generate proposals. Proposals are [batch, N, (y1, x1, y2, x2)] in normalized coordinates
+        and zero padded.
+
+        Params:
+        - config: Configuration object
+        - mode: String. Training or inference mode
+        - rpn_class: KL.Activation. RPN class classifier
+        - rpn_bbox: Can be KL.Input if mode is inference or GetAnchors layer if mode is training.
+        Is the RPN BBOX regressor
+
+        Returns: An ProposalLayer object
+        """
         # Generate proposals
         # Proposals are [batch, N, (y1, x1, y2, x2)] in normalized coordinates
         # and zero padded.
@@ -191,10 +228,19 @@ class MaskRCNN:
 
     def _build_training_architecture(
             self,
-            config,
-            input_image,
-            input_image_meta
-    ):
+            config: Config,
+            input_image: KL.Input,
+            input_image_meta: KL.Input
+    ) -> MaskRCNNModel:
+        """Build trainining architecture of Mask R-CNN.
+
+        Params:
+        - config: Configuration object
+        - input_image: Input layer of tensorflow for image
+        - input_image_meta: Input layer of tensorflow for data about image
+
+        Returns: An MaskRCNNModel object
+        """
         # RPN GT
         input_rpn_match = KL.Input(
             shape=[None, 1], name="input_rpn_match", dtype=tf.int32
@@ -334,10 +380,19 @@ class MaskRCNN:
 
     def _build_inference_architecture(
             self,
-            config,
-            input_image,
-            input_image_meta
-    ):
+            config: Config,
+            input_image: KL.Input,
+            input_image_meta: KL.Input
+    ) -> MaskRCNNModel:
+        """Build trainining architecture of Mask R-CNN.
+
+        Params:
+        - config: Configuration object
+        - input_image: Input layer of tensorflow for image
+        - input_image_meta: Input layer of tensorflow for data about image
+
+        Returns: An MaskRCNNModel object
+        """
         # Anchors in normalized coordinates
         input_anchors = KL.Input(shape=[None, 4], name="input_anchors")
 
@@ -392,9 +447,13 @@ class MaskRCNN:
 
     def build(self, mode: str, config: Config) -> MaskRCNNModel:
         """Build Mask R-CNN architecture.
-            input_shape: The shape of the input image.
-            mode: Either "training" or "inference". The inputs and
+
+            Params:
+            - mode: Either "training" or "inference". The inputs and
                 outputs of the model differ accordingly.
+            - config: Configuration object of Mask R-CNN
+
+            Returns: Object of MaskRCNNModel
         """
         assert mode in ['training', 'inference']
         # Image size must be dividable by 2 multiple times
@@ -444,8 +503,8 @@ class MaskRCNN:
     def find_last(self):
         """Finds the last checkpoint file of the last trained model in the
         model directory.
-        Returns:
-            The path of the last checkpoint file
+
+        Returns: The path of the last checkpoint file
         """
         # Get directory names. Each directory corresponds to a model
         dir_names = next(os.walk(self.model_dir))[1]
@@ -481,13 +540,21 @@ class MaskRCNN:
     def load_weights(
             self,
             init_with='',
-            filepath=None,
+            filepath: str = None,
             by_name=False
-    ):
+    ) -> None:
         """Modified version of the corresponding Keras function with
         the addition of multi-GPU support and the ability to exclude
         some layers from loading.
-        exclude: list of layer names to exclude
+        Params:
+        - init_with: String. Type of weights to load automatically, can be coco,
+        imagenet and last (last trained weights)
+        - filepath: Optional String. Specify the path of weights to be loaded.
+        if architecture don't match must set by_name to True
+        - by_name: Optional Bool. Set true when architecture of weights don't match
+        with Mask R-CNN architecture
+
+        Returns: None
         """
         self._logger.info('Starting load weights - filepath: {} - type: {}'.format(
             filepath, init_with
@@ -527,7 +594,7 @@ class MaskRCNN:
             raise ex
 
     def load_weights_h5py(self, filepath, by_name=False, exclude=None):
-        """Modified version of the corresponding Keras function with
+        """!Deprecated. Modified version of the corresponding Keras function with
         the addition of multi-GPU support and the ability to exclude
         some layers from loading.
         exclude: list of layer names to exclude
@@ -624,6 +691,9 @@ class MaskRCNN:
         return weights_path
 
     def _get_optimizer(self, learning_rate, momentum):
+        """Get the optimizer from config. Only SGD and RMSprop is working
+        with actual architecture.
+        """
         optimizer = self.config.OPTIMIZER
         self._logger.info("Using {} optimizer".format(optimizer))
         if optimizer == 'SGD':
@@ -1042,18 +1112,19 @@ class MaskRCNN:
         network output to a format suitable for use in the rest of the
         application.
 
-        detections: [N, (y1, x1, y2, x2, class_id, score)] in normalized coordinates
-        mrcnn_mask: [N, height, width, num_classes]
-        original_image_shape: [H, W, C] Original image shape before resizing
-        image_shape: [H, W, C] Shape of the image after resizing and padding
-        window: [y1, x1, y2, x2] Pixel coordinates of box in the image where the real
+        Params:
+        - detections: [N, (y1, x1, y2, x2, class_id, score)] in normalized coordinates
+        - mrcnn_mask: [N, height, width, num_classes]
+        - original_image_shape: [H, W, C] Original image shape before resizing
+        - image_shape: [H, W, C] Shape of the image after resizing and padding
+        - window: [y1, x1, y2, x2] Pixel coordinates of box in the image where the real
                 image is excluding the padding.
 
-        Returns:
-        boxes: [N, (y1, x1, y2, x2)] Bounding boxes in pixels
-        class_ids: [N] Integer class IDs for each bounding box
-        scores: [N] Float probability scores of the class_id
-        masks: [height, width, num_instances] Instance masks
+        Returns: Tuple of
+        - boxes: [N, (y1, x1, y2, x2)] Bounding boxes in pixels
+        - class_ids: [N] Integer class IDs for each bounding box
+        - scores: [N] Float probability scores of the class_id
+        - masks: [height, width, num_instances] Instance masks
         """
         # How many detections do we have?
         # Detections array is padded with zeros. Find the first class_id == 0.

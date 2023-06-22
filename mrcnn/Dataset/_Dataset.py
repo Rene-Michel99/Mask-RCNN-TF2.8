@@ -139,10 +139,13 @@ class Dataset(object):
         method to load instance masks and return them in the form of am
         array of binary masks of shape [height, width, instances].
 
-        Returns:
-            masks: A bool array of shape [height, width, instance count] with
+        Params:
+        - image_id: Index of image in array
+
+        Returns: Tuple of
+            - masks: A bool array of shape [height, width, instance count] with
                 a binary mask per instance.
-            class_ids: a 1D array of class IDs of the instance masks.
+            - class_ids: a 1D array of class IDs of the instance masks.
         """
         # Override this function to load a mask from your dataset.
         # Otherwise, it returns an empty mask.

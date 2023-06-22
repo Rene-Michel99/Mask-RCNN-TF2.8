@@ -2,25 +2,29 @@ import tensorflow as tf
 import tensorflow.keras.layers as KL
 import tensorflow.keras.models as KM
 import tensorflow.keras.backend as K
+from typing import List, Union
 
 from mrcnn.CustomLayers import (
     PyramidROIAlign,
-    BatchNorm
+    BatchNorm,
+    DetectionLayer,
+    DetectionTargetLayer
 )
 
 
 def rpn_graph(feature_map, anchors_per_location, anchor_stride):
     """Builds the computation graph of Region Proposal Network.
 
-    feature_map: backbone features [batch, height, width, depth]
-    anchors_per_location: number of anchors per pixel in the feature map
-    anchor_stride: Controls the density of anchors. Typically 1 (anchors for
+    Params:
+    - feature_map: backbone features [batch, height, width, depth]
+    - anchors_per_location: number of anchors per pixel in the feature map
+    - anchor_stride: Controls the density of anchors. Typically 1 (anchors for
                    every pixel in the feature map), or 2 (every other pixel).
 
-    Returns:
-        rpn_class_logits: [batch, H * W * anchors_per_location, 2] Anchor classifier logits (before softmax)
-        rpn_probs: [batch, H * W * anchors_per_location, 2] Anchor classifier probabilities.
-        rpn_bbox: [batch, H * W * anchors_per_location, (dy, dx, log(dh), log(dw))] Deltas to be
+    Returns: Tuple of
+        - rpn_class_logits: [batch, H * W * anchors_per_location, 2] Anchor classifier logits (before softmax)
+        - rpn_probs: [batch, H * W * anchors_per_location, 2] Anchor classifier probabilities.
+        - rpn_bbox: [batch, H * W * anchors_per_location, (dy, dx, log(dh), log(dw))] Deltas to be
                   applied to anchors.
     """
     # TODO: check if stride of 2 causes alignment issues if the feature map
@@ -59,10 +63,11 @@ def build_rpn_model(anchor_stride, anchors_per_location, depth):
     It wraps the RPN graph so it can be used multiple times with shared
     weights.
 
-    anchors_per_location: number of anchors per pixel in the feature map
-    anchor_stride: Controls the density of anchors. Typically 1 (anchors for
+    Params:
+    - anchors_per_location: number of anchors per pixel in the feature map
+    - anchor_stride: Controls the density of anchors. Typically 1 (anchors for
                    every pixel in the feature map), or 2 (every other pixel).
-    depth: Depth of the backbone feature map.
+    - depth: Depth of the backbone feature map.
 
     Returns a Keras Model object. The model outputs, when called, are:
     rpn_class_logits: [batch, H * W * anchors_per_location, 2] Anchor classifier logits (before softmax)
@@ -81,32 +86,36 @@ def build_rpn_model(anchor_stride, anchors_per_location, depth):
 ############################################################
 
 def fpn_classifier_graph(
-        rois,
-        feature_maps,
-        image_meta,
-        pool_size,
-        num_classes,
-        interpolation_method,
+        rois: Union[DetectionTargetLayer, DetectionLayer],
+        feature_maps: List[KL.Conv2D],
+        image_meta: KL.Input,
+        pool_size: int,
+        num_classes: int,
+        interpolation_method: str,
         train_bn=True,
         fc_layers_size=1024
 ):
     """Builds the computation graph of the feature pyramid network classifier
     and regressor heads.
 
-    rois: [batch, num_rois, (y1, x1, y2, x2)] Proposal boxes in normalized
+    Params:
+    - rois: [batch, num_rois, (y1, x1, y2, x2)] Proposal boxes in normalized
           coordinates.
-    feature_maps: List of feature maps from different layers of the pyramid,
+    - feature_maps: List of feature maps from different layers of the pyramid,
                   [P2, P3, P4, P5]. Each has a different resolution.
-    image_meta: [batch, (meta data)] Image details. See compose_image_meta()
-    pool_size: The width of the square feature map generated from ROI Pooling.
-    num_classes: number of classes, which determines the depth of the results
-    train_bn: Boolean. Train or freeze Batch Norm layers
-    fc_layers_size: Size of the 2 FC layers
+    - image_meta: [batch, (meta data)] Image details. See compose_image_meta()
+    - pool_size: The width of the square feature map generated from ROI Pooling.
+    - num_classes: number of classes, which determines the depth of the results
+    - interpolation_method: String. Interpolation method to be use in resize function.
+        Can be bilinear, nearest, bicubic, area and lanczos4. To see more about search
+        cv2.resize method
+    - train_bn: Boolean. Train or freeze Batch Norm layers
+    - fc_layers_size: Size of the 2 FC layers
 
-    Returns:
-        logits: [batch, num_rois, NUM_CLASSES] classifier logits (before softmax)
-        probs: [batch, num_rois, NUM_CLASSES] classifier probabilities
-        bbox_deltas: [batch, num_rois, NUM_CLASSES, (dy, dx, log(dh), log(dw))] Deltas to apply to
+    Returns: Tuple of
+        - logits: [batch, num_rois, NUM_CLASSES] classifier logits (before softmax)
+        - probs: [batch, num_rois, NUM_CLASSES] classifier probabilities
+        - bbox_deltas: [batch, num_rois, NUM_CLASSES, (dy, dx, log(dh), log(dw))] Deltas to apply to
                      proposal boxes
     """
     # ROI Pooling
@@ -149,12 +158,12 @@ def fpn_classifier_graph(
 
 
 def build_fpn_mask_graph(
-        rois,
-        feature_maps,
-        image_meta,
-        pool_size,
-        num_classes,
-        interpolation_method,
+        rois: KL.Lambda,
+        feature_maps: List[KL.Conv2D],
+        image_meta: KL.Input,
+        pool_size: int,
+        num_classes: int,
+        interpolation_method: str,
         train_bn=True
 ):
     """Builds the computation graph of the mask head of Feature Pyramid Network.

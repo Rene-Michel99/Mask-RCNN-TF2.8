@@ -22,12 +22,11 @@ class ProposalLayer(tf.keras.layers.Layer):
     box refinement deltas to anchors.
 
     Inputs:
-        rpn_probs: [batch, num_anchors, (bg prob, fg prob)]
-        rpn_bbox: [batch, num_anchors, (dy, dx, log(dh), log(dw))]
-        anchors: [batch, num_anchors, (y1, x1, y2, x2)] anchors in normalized coordinates
+        - rpn_probs: [batch, num_anchors, (bg prob, fg prob)]
+        - rpn_bbox: [batch, num_anchors, (dy, dx, log(dh), log(dw))]
+        - anchors: [batch, num_anchors, (y1, x1, y2, x2)] anchors in normalized coordinates
 
-    Returns:
-        Proposals in normalized coordinates [batch, rois, (y1, x1, y2, x2)]
+    Returns: Proposals in normalized coordinates [batch, rois, (y1, x1, y2, x2)]
     """
 
     def __init__(

@@ -229,6 +229,16 @@ class DetectionTargetLayer(tf.keras.layers.Layer):
 
     @tf.function
     def call(self, inputs):
+        """ The inputs is a list of params.
+
+        Params:
+        - proposals: Can be ProposalLayer or KL.Lambda with norm_boxes_graph call
+        - gt_class_ids: KL.Input. Detection GT (class IDs, bounding boxes, and masks)
+        - gt_boxes: NormBoxesGraph layer of input_gt_boxes
+        - gt_masks: KL.Input. With shape of [MINI_MASK_SHAPE[0], MINI_MASK_SHAPE[1], None]
+        or [IMAGE_SHAPE[0], IMAGE_SHAPE[1], None], both with dtype bool
+
+        """
         proposals = inputs[0]
         gt_class_ids = inputs[1]
         gt_boxes = inputs[2]

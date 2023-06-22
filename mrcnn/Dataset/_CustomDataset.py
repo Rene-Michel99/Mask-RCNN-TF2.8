@@ -83,12 +83,14 @@ class CustomDataset(Dataset):
     def load_mask(self, image_id):
         """ Load instance masks for the given image.
         MaskRCNN expects masks in the form of a bitmap [height, width, instances].
-        Args:
-            image_id: The id of the image to load masks for
-        Returns:
-            masks: A bool array of shape [height, width, instance count] with
+
+        Params:
+            - image_id: The id of the image to load masks for
+
+        Returns: Tuple of
+            - masks: A bool array of shape [height, width, instance count] with
                 one mask per instance.
-            class_ids: a 1D array of class IDs of the instance masks.
+            - class_ids: a 1D array of class IDs of the instance masks.
         """
         image_info = self.image_info[image_id]
         annotations = image_info['annotations']

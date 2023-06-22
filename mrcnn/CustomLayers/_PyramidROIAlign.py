@@ -1,4 +1,5 @@
 import tensorflow as tf
+from typing import List
 
 from ._Common import resize_and_crop
 from ._Interface import Interface
@@ -34,12 +35,26 @@ class PyramidROIAlign(tf.keras.layers.Layer):
     constructor.
     """
 
-    def __init__(self, pool_shape, interpolation_method, **kwargs):
+    def __init__(self, pool_shape: List[int], interpolation_method: str, **kwargs):
         super(PyramidROIAlign, self).__init__(**kwargs)
         self.interface = PyramidInterface(tuple(pool_shape), interpolation_method)
 
     @tf.function
     def call(self, inputs):
+        """ The input is a list of params
+
+        Params:
+        - boxes: [batch, num_rois, (y1, x1, y2, x2)] Proposal boxes in normalized
+          coordinates.
+        - image_meta: [batch, (meta data)] Image details. See compose_image_meta()
+        - feature_maps: List of feature maps from different layers of the pyramid,
+          [P2, P3, P4, P5]. Each has a different resolution.
+
+
+        Returns: Pooled regions in the shape [batch, num_boxes, pool_height, pool_width, channels],
+            The width and height are those specific in the pool_shape in the layer constructor.
+
+        """
         # Crop boxes [batch, num_boxes, (y1, x1, y2, x2)] in normalized coords
         boxes = inputs[0]
         # Image meta

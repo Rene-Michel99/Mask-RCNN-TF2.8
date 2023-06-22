@@ -9,13 +9,15 @@ class MRCNNClassLossGraph(tf.keras.layers.Layer):
     def call(self, inputs):
         """Loss for the classifier head of Mask RCNN.
 
-            target_class_ids: [batch, num_rois]. Integer class IDs. Uses zero
-                padding to fill in the array.
-            pred_class_logits: [batch, num_rois, num_classes]
-            active_class_ids: [batch, num_classes]. Has a value of 1 for
-                classes that are in the dataset of the image, and 0
-                for classes that are not in the dataset.
-            """
+        Params:
+        - target_class_ids: [batch, num_rois]. Integer class IDs. Uses zero padding to fill in the array.
+        - pred_class_logits: [batch, num_rois, num_classes] classifier logits (before softmax)
+        - active_class_ids: [batch, num_classes]. Has a value of 1 for
+          classes that are in the dataset of the image, and 0
+          for classes that are not in the dataset.
+
+        Returns: Float of loss of MRCNN Classifier
+        """
         pred_class_logits = inputs[1]
         active_class_ids = inputs[2]
         # During model building, Keras calls this function with

@@ -8,14 +8,15 @@ class NormBoxesGraph(tf.keras.layers.Layer):
     @tf.function
     def call(self, inputs):
         """Converts boxes from pixel coordinates to normalized coordinates.
-        boxes: [..., (y1, x1, y2, x2)] in pixel coordinates
-        shape: [..., (height, width)] in pixels
+
+        Params:
+        - boxes: [..., (y1, x1, y2, x2)] in pixel coordinates
+        - shape: [..., (height, width)] in pixels
 
         Note: In pixel coordinates (y2, x2) is outside the box. But in normalized
         coordinates it's inside the box.
 
-        Returns:
-            [..., (y1, x1, y2, x2)] in normalized coordinates
+        Returns: [..., (y1, x1, y2, x2)] in normalized coordinates
         """
         boxes = inputs[0]
         shape = inputs[1]
