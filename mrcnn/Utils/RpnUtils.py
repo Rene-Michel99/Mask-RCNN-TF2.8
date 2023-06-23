@@ -168,14 +168,15 @@ def build_fpn_mask_graph(
 ):
     """Builds the computation graph of the mask head of Feature Pyramid Network.
 
-    rois: [batch, num_rois, (y1, x1, y2, x2)] Proposal boxes in normalized
+    Params:
+    - rois: [batch, num_rois, (y1, x1, y2, x2)] Proposal boxes in normalized
           coordinates.
-    feature_maps: List of feature maps from different layers of the pyramid,
+    - feature_maps: List of feature maps from different layers of the pyramid,
                   [P2, P3, P4, P5]. Each has a different resolution.
-    image_meta: [batch, (meta data)] Image details. See compose_image_meta()
-    pool_size: The width of the square feature map generated from ROI Pooling.
-    num_classes: number of classes, which determines the depth of the results
-    train_bn: Boolean. Train or freeze Batch Norm layers
+    - image_meta: [batch, (meta data)] Image details. See compose_image_meta()
+    - pool_size: The width of the square feature map generated from ROI Pooling.
+    - num_classes: number of classes, which determines the depth of the results
+    - train_bn: Boolean. Train or freeze Batch Norm layers
 
     Returns: Masks [batch, num_rois, MASK_POOL_SIZE, MASK_POOL_SIZE, NUM_CLASSES]
     """

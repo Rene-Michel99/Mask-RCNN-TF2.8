@@ -13,15 +13,16 @@ def build_rpn_model(anchor_stride, anchors_per_location, depth):
     It wraps the RPN graph so it can be used multiple times with shared
     weights.
 
-    anchors_per_location: number of anchors per pixel in the feature map
-    anchor_stride: Controls the density of anchors. Typically 1 (anchors for
+    Params:
+    - anchors_per_location: number of anchors per pixel in the feature map
+    - anchor_stride: Controls the density of anchors. Typically 1 (anchors for
                    every pixel in the feature map), or 2 (every other pixel).
-    depth: Depth of the backbone feature map.
+    - depth: Depth of the backbone feature map.
 
-    Returns a Keras Model object. The model outputs, when called, are:
-    rpn_class_logits: [batch, H * W * anchors_per_location, 2] Anchor classifier logits (before softmax)
-    rpn_probs: [batch, H * W * anchors_per_location, 2] Anchor classifier probabilities.
-    rpn_bbox: [batch, H * W * anchors_per_location, (dy, dx, log(dh), log(dw))] Deltas to be
+    Returns: a Keras Model object. The model outputs, when called, are:
+    - rpn_class_logits: [batch, H * W * anchors_per_location, 2] Anchor classifier logits (before softmax)
+    - rpn_probs: [batch, H * W * anchors_per_location, 2] Anchor classifier probabilities.
+    - rpn_bbox: [batch, H * W * anchors_per_location, (dy, dx, log(dh), log(dw))] Deltas to be
                 applied to anchors.
     """
     input_feature_map = KL.Input(shape=[None, None, depth],
@@ -33,14 +34,16 @@ def build_rpn_model(anchor_stride, anchors_per_location, depth):
 def conv_block(input_tensor, kernel_size, filters, stage, block,
                strides=(2, 2), use_bias=True, train_bn=True):
     """conv_block is the block that has a conv layer at shortcut
-    # Arguments
-        input_tensor: input tensor
-        kernel_size: default 3, the kernel size of middle conv layer at main path
-        filters: list of integers, the nb_filters of 3 conv layer at main path
-        stage: integer, current stage label, used for generating layer names
-        block: 'a','b'..., current block label, used for generating layer names
-        use_bias: Boolean. To use or not use a bias in conv layers.
-        train_bn: Boolean. Train or freeze Batch Norm layers
+
+    Params:
+        - input_tensor: input tensor
+        - kernel_size: default 3, the kernel size of middle conv layer at main path
+        - filters: list of integers, the nb_filters of 3 conv layer at main path
+        - stage: integer, current stage label, used for generating layer names
+        - block: 'a','b'..., current block label, used for generating layer names
+        - use_bias: Boolean. To use or not use a bias in conv layers.
+        - train_bn: Boolean. Train or freeze Batch Norm layers
+
     Note that from stage 3, the first conv layer at main path is with subsample=(2,2)
     And the shortcut should have subsample=(2,2) as well
     """
@@ -74,14 +77,15 @@ def conv_block(input_tensor, kernel_size, filters, stage, block,
 def identity_block(input_tensor, kernel_size, filters, stage, block,
                    use_bias=True, train_bn=True):
     """The identity_block is the block that has no conv layer at shortcut
-    # Arguments
-        input_tensor: input tensor
-        kernel_size: default 3, the kernel size of middle conv layer at main path
-        filters: list of integers, the nb_filters of 3 conv layer at main path
-        stage: integer, current stage label, used for generating layer names
-        block: 'a','b'..., current block label, used for generating layer names
-        use_bias: Boolean. To use or not use a bias in conv layers.
-        train_bn: Boolean. Train or freeze Batch Norm layers
+
+    Params:
+        - input_tensor: input tensor
+        - kernel_size: default 3, the kernel size of middle conv layer at main path
+        - filters: list of integers, the nb_filters of 3 conv layer at main path
+        - stage: integer, current stage label, used for generating layer names
+        - block: 'a','b'..., current block label, used for generating layer names
+        - use_bias: Boolean. To use or not use a bias in conv layers.
+        - train_bn: Boolean. Train or freeze Batch Norm layers
     """
     nb_filter1, nb_filter2, nb_filter3 = filters
     conv_name_base = 'res' + str(stage) + block + '_branch'
@@ -278,9 +282,11 @@ def resnet101v2_graph(input_image, train_bn, use_bias=True, stage5=True):
 
 def resnet_graph(input_image, architecture, stage5=False, train_bn=True):
     """Build a ResNet graph.
-        architecture: Can be resnet50 or resnet101
-        stage5: Boolean. If False, stage5 of the network is not created
-        train_bn: Boolean. Train or freeze Batch Norm layers
+
+    Params:
+        - architecture: Can be resnet50 or resnet101
+        - stage5: Boolean. If False, stage5 of the network is not created
+        - train_bn: Boolean. Train or freeze Batch Norm layers
     """
     assert architecture in ["resnet50", "resnet101", "resnet101V2"]
     if architecture == "resnet101V2":

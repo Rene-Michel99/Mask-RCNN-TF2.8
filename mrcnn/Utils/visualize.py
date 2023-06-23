@@ -27,12 +27,14 @@ sys.path.append(ROOT_DIR)  # To find local version of the library
 def display_images(images, titles=None, cols=4, cmap=None, norm=None,
                    interpolation=None):
     """Display the given set of images, optionally with titles.
-    images: list or array of image tensors in HWC format.
-    titles: optional. A list of titles to display with each image.
-    cols: number of images per row
-    cmap: Optional. Color map to use. For example, "Blues".
-    norm: Optional. A Normalize instance to map values to colors.
-    interpolation: Optional. Image interpolation to use for display.
+
+    Params:
+    - images: list or array of image tensors in HWC format.
+    - titles: optional. A list of titles to display with each image.
+    - cols: number of images per row
+    - cmap: Optional. Color map to use. For example, "Blues".
+    - norm: Optional. A Normalize instance to map values to colors.
+    - interpolation: Optional. Image interpolation to use for display.
     """
     titles = titles if titles is not None else [""] * len(images)
     rows = len(images) // cols + 1
@@ -77,17 +79,19 @@ def display_instances(image, boxes, masks, class_ids, class_names,
                       figsize=(16, 16), ax=None,
                       show_mask=True, show_bbox=True,
                       colors=None, captions=None):
-    """
-    boxes: [num_instance, (y1, x1, y2, x2, class_id)] in image coordinates.
-    masks: [height, width, num_instances]
-    class_ids: [num_instances]
-    class_names: list of class names of the dataset
-    scores: (optional) confidence scores for each box
-    title: (optional) Figure title
-    show_mask, show_bbox: To show masks and bounding boxes or not
-    figsize: (optional) the size of the image
-    colors: (optional) An array or colors to use with each object
-    captions: (optional) A list of strings to use as captions for each object
+    """ Display images with detections boxes and masks.
+
+    Params:
+    - boxes: [num_instance, (y1, x1, y2, x2, class_id)] in image coordinates.
+    - masks: [height, width, num_instances]
+    - class_ids: [num_instances]
+    - class_names: list of class names of the dataset
+    - scores: (optional) confidence scores for each box
+    - title: (optional) Figure title
+      show_mask, show_bbox: To show masks and bounding boxes or not
+    - figsize: (optional) the size of the image
+    - colors: (optional) An array or colors to use with each object
+    - captions: (optional) A list of strings to use as captions for each object
     """
     # Number of instances
     N = boxes.shape[0]
@@ -162,16 +166,17 @@ def get_img_instances(image, boxes, masks, class_ids, class_names,
                       scores=None, show_mask=True, show_bbox=True,
                       colors=None, captions=None):
     """
-    boxes: [num_instance, (y1, x1, y2, x2, class_id)] in image coordinates.
-    masks: [height, width, num_instances]
-    class_ids: [num_instances]
-    class_names: list of class names of the dataset
-    scores: (optional) confidence scores for each box
-    title: (optional) Figure title
-    show_mask, show_bbox: To show masks and bounding boxes or not
-    figsize: (optional) the size of the image
-    colors: (optional) An array or colors to use with each object
-    captions: (optional) A list of strings to use as captions for each object
+    Params:
+    - boxes: [num_instance, (y1, x1, y2, x2, class_id)] in image coordinates.
+    - masks: [height, width, num_instances]
+    - class_ids: [num_instances]
+    - class_names: list of class names of the dataset
+    - scores: (optional) confidence scores for each box
+    - title: (optional) Figure title
+      show_mask, show_bbox: To show masks and bounding boxes or not
+    - figsize: (optional) the size of the image
+    - colors: (optional) An array or colors to use with each object
+    - captions: (optional) A list of strings to use as captions for each object
     """
     # Number of instances
     N = boxes.shape[0]
@@ -264,8 +269,9 @@ def display_differences(image,
 
 def draw_rois(image, rois, refined_rois, mask, class_ids, class_names, limit=10):
     """
-    anchors: [n, (y1, x1, y2, x2)] list of anchors in image coordinates.
-    proposals: [n, 4] the same anchors but refined to fit objects better.
+    Params:
+    - anchors: [n, (y1, x1, y2, x2)] list of anchors in image coordinates.
+    - proposals: [n, 4] the same anchors but refined to fit objects better.
     """
     masked_image = image.copy()
 
@@ -362,9 +368,10 @@ def display_top_masks(image, mask, class_ids, class_names, limit=4):
 def plot_precision_recall(AP, precisions, recalls):
     """Draw the precision-recall curve.
 
-    AP: Average precision at IoU >= 0.5
-    precisions: list of precision values
-    recalls: list of recall values
+    Params:
+    - AP: Average precision at IoU >= 0.5
+    - precisions: list of precision values
+    - recalls: list of recall values
     """
     # Plot the Precision-Recall curve
     _, ax = plt.subplots(1)
@@ -377,12 +384,14 @@ def plot_precision_recall(AP, precisions, recalls):
 def plot_overlaps(gt_class_ids, pred_class_ids, pred_scores,
                   overlaps, class_names, threshold=0.5):
     """Draw a grid showing how ground truth objects are classified.
-    gt_class_ids: [N] int. Ground truth class IDs
-    pred_class_id: [N] int. Predicted class IDs
-    pred_scores: [N] float. The probability scores of predicted classes
-    overlaps: [pred_boxes, gt_boxes] IoU overlaps of predictions and GT boxes.
-    class_names: list of all class names in the dataset
-    threshold: Float. The prediction probability required to predict a class
+
+    Params:
+    - gt_class_ids: [N] int. Ground truth class IDs
+    - pred_class_id: [N] int. Predicted class IDs
+    - pred_scores: [N] float. The probability scores of predicted classes
+    - overlaps: [pred_boxes, gt_boxes] IoU overlaps of predictions and GT boxes.
+    - class_names: list of all class names in the dataset
+    - threshold: Float. The prediction probability required to predict a class
     """
     gt_class_ids = gt_class_ids[gt_class_ids != 0]
     pred_class_ids = pred_class_ids[pred_class_ids != 0]
@@ -419,15 +428,16 @@ def draw_boxes(image, boxes=None, refined_boxes=None,
     """Draw bounding boxes and segmentation masks with different
     customizations.
 
-    boxes: [N, (y1, x1, y2, x2, class_id)] in image coordinates.
-    refined_boxes: Like boxes, but draw with solid lines to show
+    Params:
+    - boxes: [N, (y1, x1, y2, x2, class_id)] in image coordinates.
+    - refined_boxes: Like boxes, but draw with solid lines to show
         that they're the result of refining 'boxes'.
-    masks: [N, height, width]
-    captions: List of N titles to display on each box
-    visibilities: (optional) List of values of 0, 1, or 2. Determine how
+    - masks: [N, height, width]
+    - captions: List of N titles to display on each box
+    - visibilities: (optional) List of values of 0, 1, or 2. Determine how
         prominent each bounding box should be.
-    title: An optional title to show over the image
-    ax: (optional) Matplotlib axis to draw on.
+    - title: An optional title to show over the image
+    - ax: (optional) Matplotlib axis to draw on.
     """
     # Number of boxes
     assert boxes is not None or refined_boxes is not None
