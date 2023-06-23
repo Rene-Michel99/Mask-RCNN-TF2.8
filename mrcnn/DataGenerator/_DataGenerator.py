@@ -495,7 +495,7 @@ class DataGenerator(KU.Sequence):
 
             # RPN Targets
             rpn_match, rpn_bbox = self._build_rpn_targets(
-                image.shape, self.anchors,
+                self.anchors,
                 gt_class_ids, gt_boxes
             )
 
