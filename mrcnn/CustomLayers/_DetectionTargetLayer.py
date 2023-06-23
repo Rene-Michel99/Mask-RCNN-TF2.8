@@ -55,6 +55,7 @@ class DetectionTargetLayer(tf.keras.layers.Layer):
     @tf.function
     def box_refinement_graph(box, gt_box):
         """Compute refinement needed to transform box to gt_box.
+
         box and gt_box are [N, (y1, x1, y2, x2)]
         """
         box = tf.cast(box, tf.float32)
@@ -205,7 +206,6 @@ class DetectionTargetLayer(tf.keras.layers.Layer):
                 box_ids, self.interface.MASK_SHAPE,
                 method='bilinear'
             )
-        #tf.print('detection layer masks:', masks.shape)
 
         # Remove the extra dimension from masks.
         masks = tf.squeeze(masks, axis=3)

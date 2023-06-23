@@ -19,7 +19,7 @@ class RPNBboxLoss(tf.keras.layers.Layer):
         - rpn_match: [batch, anchors, 1]. Anchor match type 1=positive, -1=negative, 0=neutral anchor.
         - rpn_bbox: [batch, anchors, (dy, dx, log(dh), log(dw))]
 
-        Returns: Float of RPN BBOX Regressor
+        Returns: Float of RPN BBOX
         """
         target_bbox = inputs[0]
         # Positive anchors contribute to the loss, but negative and

@@ -8,8 +8,13 @@ def trim_zeros_graph(boxes, name='trim_zeros'):
     """Often boxes are represented with matrices of shape [N, 4] and
     are padded with zeros. This removes zero boxes.
 
-    boxes: [N, 4] matrix of boxes.
-    non_zeros: [N] a 1D boolean mask identifying the rows to keep
+    Params:
+    - boxes: [N, 4] matrix of boxes.
+    - non_zeros: [N] a 1D boolean mask identifying the rows to keep
+
+    Returns: Tuple of
+    - boxes: [N, 4] matrix of non zeros boxes
+    - non_zeros: [N] a 1D boolean mask identifying the rows to keep
     """
     non_zeros = tf.cast(tf.reduce_sum(tf.abs(boxes), axis=1, name="non_zeros"), tf.bool)
     boxes = tf.boolean_mask(boxes, non_zeros, name=name)
@@ -22,15 +27,15 @@ def refine_detections_graph(rois, probs, deltas, window, config):
     """Refine classified proposals and filter overlaps and return final
     detections.
 
-    Inputs:
-        rois: [N, (y1, x1, y2, x2)] in normalized coordinates
-        probs: [N, num_classes]. Class probabilities.
-        deltas: [N, num_classes, (dy, dx, log(dh), log(dw))]. Class-specific
+    Params:
+        - rois: [N, (y1, x1, y2, x2)] in normalized coordinates
+        - probs: [N, num_classes]. Class probabilities.
+        - deltas: [N, num_classes, (dy, dx, log(dh), log(dw))]. Class-specific
                 bounding box deltas.
-        window: (y1, x1, y2, x2) in normalized coordinates. The part of the image
+        - window: (y1, x1, y2, x2) in normalized coordinates. The part of the image
             that contains the image excluding the padding.
 
-    Returns detections shaped: [num_detections, (y1, x1, y2, x2, class_id, score)] where
+    Returns: detections shaped [num_detections, (y1, x1, y2, x2, class_id, score)] where
         coordinates are normalized.
     """
     # Class IDs per ROI
@@ -137,8 +142,12 @@ def norm_boxes_graph(boxes, shape):
 @tf.function
 def apply_box_deltas_graph(boxes, deltas):
     """Applies the given deltas to the given boxes.
-    boxes: [N, (y1, x1, y2, x2)] boxes to update
-    deltas: [N, (dy, dx, log(dh), log(dw))] refinements to apply
+
+    Params:
+    - boxes: [N, (y1, x1, y2, x2)] boxes to update
+    - deltas: [N, (dy, dx, log(dh), log(dw))] refinements to apply
+
+    Returns: Applied deltas [N, (y1, x1, y2, x2)] stacked
     """
     # Convert to y, x, h, w
     height = boxes[:, 2] - boxes[:, 0]
@@ -161,9 +170,13 @@ def apply_box_deltas_graph(boxes, deltas):
 
 @tf.function
 def clip_boxes_graph(boxes, window):
-    """
-    boxes: [N, (y1, x1, y2, x2)]
-    window: [4] in the form y1, x1, y2, x2
+    """ Apply clipping in boxes.
+
+    Params:
+    - boxes: [N, (y1, x1, y2, x2)]
+    - window: [4] in the form y1, x1, y2, x2
+
+    Returns: Clipped boxes [N, (y1, x1, y2, x2)]
     """
     # Split
     wy1, wx1, wy2, wx2 = tf.split(window, 4)
@@ -181,7 +194,12 @@ def clip_boxes_graph(boxes, window):
 @tf.function
 def overlaps_graph(boxes1, boxes2):
     """Computes IoU overlaps between two sets of boxes.
-    boxes1, boxes2: [N, (y1, x1, y2, x2)].
+
+    Params:
+    - boxes1: [N, (y1, x1, y2, x2)].
+    - boxes2: [N, (y1, x1, y2, x2)].
+
+    Returns: [N, float] IoU for each box
     """
     # 1. Tile boxes2 and repeat boxes1. This allows us to compare
     # every boxes1 against every boxes2 without loops.
@@ -211,8 +229,8 @@ def overlaps_graph(boxes1, boxes2):
 @tf.function
 def smooth_l1_loss(y_true, y_pred, name=""):
     """Implements Smooth-L1 loss.
-    y_tru
-    e and y_pred are typically: [N, 4], but could be any shape.
+
+    y_true and y_pred are typically: [N, 4], but could be any shape.
     """
     diff = tf.abs(y_true - y_pred)
     less_than_one = tf.cast(tf.less(diff, 1.0), tf.float32)
@@ -264,8 +282,7 @@ def resize_and_crop(
         - img: [batch, height, width, channels] An image
         - pool_shape: [pool_height, pool_width] of the output pooled regions. Usually [7, 7]
 
-        Output:
-        Cropped and resized img: [n, num_boxes, pool_height, pool_width, channels].
+        Returns: Cropped and resized img [n, num_boxes, pool_height, pool_width, channels].
         The width and height are those specific in the pool_shape in the layer
         constructor.
     """

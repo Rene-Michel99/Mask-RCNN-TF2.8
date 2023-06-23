@@ -102,24 +102,24 @@ class Dataset(object):
         """
         return self.class_from_source_map[source_class_id]
 
-    def get_source_class_id(self, class_id, source):
+    def get_source_class_id(self, class_id: int, source):
         """Map an internal class ID to the corresponding class ID in the source dataset."""
         info = self.class_info[class_id]
         assert info['source'] == source
         return info['id']
 
     @property
-    def image_ids(self):
+    def image_ids(self) -> list:
         return self._image_ids
 
-    def source_image_link(self, image_id):
+    def source_image_link(self, image_id: int):
         """Returns the path or URL to the image.
         Override this to return a URL to the image if it's available online for easy
         debugging.
         """
         return self.image_info[image_id]["path"]
 
-    def load_image(self, image_id):
+    def load_image(self, image_id: int):
         """Load the specified image and return a [H,W,3] Numpy array.
         """
         # Load image
@@ -132,7 +132,7 @@ class Dataset(object):
             image = image[..., :3]
         return image
 
-    def load_mask(self, image_id):
+    def load_mask(self, image_id: int):
         """Load instance masks for the given image.
 
         Different datasets use different ways to store masks. Override this

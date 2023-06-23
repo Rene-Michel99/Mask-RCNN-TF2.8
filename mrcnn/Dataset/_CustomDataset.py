@@ -1,8 +1,10 @@
 import os
-from ._Dataset import Dataset
-from PIL import Image, ImageDraw
-import numpy as np
 import json
+import numpy as np
+from PIL import Image, ImageDraw
+from typing import Tuple
+
+from ._Dataset import Dataset
 
 
 class CustomDataset(Dataset):
@@ -10,12 +12,11 @@ class CustomDataset(Dataset):
         See http://cocodataset.org/#home for more information.
     """
 
-    def load_custom(self, annotation_json, images_dir, dataset_type="train", split_train_test=0):
+    def load_custom(self, annotation_json: str, images_dir: str, split_train_test: float) -> None:
         """ Load the coco-like dataset from json
         Args:
             annotation_json: The path to the coco annotations json file
             images_dir: The directory holding the images referred to by the json file
-            dataset_type: Type of dataset (train, test, validation). But can be any string
             split_train_test: Float to split dataset in train test. If is 0 then no split is applied
         """
 
@@ -66,6 +67,7 @@ class CustomDataset(Dataset):
                     image_height = image['height']
                 except KeyError as key:
                     print("Warning: Skipping image (id: {}) with missing key: {}".format(image_id, key))
+                    continue
 
                 image_path = os.path.abspath(os.path.join(images_dir, image_file_name))
                 image_annotations = annotations[image_id]
@@ -80,7 +82,7 @@ class CustomDataset(Dataset):
                     annotations=image_annotations
                 )
 
-    def load_mask(self, image_id):
+    def load_mask(self, image_id: int) -> Tuple[np.ndarray, np.ndarray]:
         """ Load instance masks for the given image.
         MaskRCNN expects masks in the form of a bitmap [height, width, instances].
 
@@ -109,10 +111,9 @@ class CustomDataset(Dataset):
 
         mask = np.dstack(instance_masks).astype(np.uint8)
         class_ids = np.array(class_ids, dtype=np.int32)
-        #print("Class_ids, ", class_ids)
         return mask, class_ids
 
-    def count_classes(self):
+    def count_classes(self) -> int:
         class_ids = set()
         for image_id in self.image_ids:
             image_info = self.image_info[image_id]

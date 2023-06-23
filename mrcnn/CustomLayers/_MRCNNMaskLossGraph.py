@@ -10,11 +10,14 @@ class MRCNNMaskLossGraph(tf.keras.layers.Layer):
     def call(self, inputs):
         """Mask binary cross-entropy loss for the masks head.
 
-            target_masks: [batch, num_rois, height, width].
+            Params:
+            - target_masks: [batch, num_rois, height, width].
                 A float32 tensor of values 0 or 1. Uses zero padding to fill array.
-            target_class_ids: [batch, num_rois]. Integer class IDs. Zero padded.
-            pred_masks: [batch, proposals, height, width, num_classes] float32 tensor
+            - target_class_ids: [batch, num_rois]. Integer class IDs. Zero padded.
+            - pred_masks: [batch, proposals, height, width, num_classes] float32 tensor
                         with values from 0 to 1.
+
+            Returns: Float loss for Mask loss
             """
         target_masks = inputs[0]
         # Reshape for simplicity. Merge first two dimensions into one.

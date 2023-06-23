@@ -9,8 +9,11 @@ import tensorflow as tf
 import tensorflow.keras as keras
 import tensorflow.keras.backend as K
 import tensorflow.keras.layers as KL
-from typing import List, Union, Tuple
+from typing import List, Union, Tuple, Callable, Dict, Optional
+from tensorflow.keras.optimizers import Optimizer
+from tensorflow.keras.callbacks import History
 
+from .Dataset import Dataset
 from .Configs import Config
 from .Utils import utilfunctions
 from .Utils.DataUtils import mold_image, compose_image_meta
@@ -500,7 +503,7 @@ class MaskRCNN:
 
         return model
 
-    def find_last(self):
+    def find_last(self) -> str:
         """Finds the last checkpoint file of the last trained model in the
         model directory.
 
@@ -593,7 +596,7 @@ class MaskRCNN:
             )
             raise ex
 
-    def load_weights_h5py(self, filepath, by_name=False, exclude=None):
+    def load_weights_h5py(self, filepath: str, by_name=False, exclude=None) -> None:
         """!Deprecated. Modified version of the corresponding Keras function with
         the addition of multi-GPU support and the ability to exclude
         some layers from loading.
@@ -629,7 +632,7 @@ class MaskRCNN:
         # Update the log directory
         self.set_log_dir(filepath)
 
-    def get_imagenet_weights(self, include_top=False):
+    def get_imagenet_weights(self, include_top=False) -> str:
         """Downloads ImageNet trained weights from Keras.
         Returns path to weights file.
         """
@@ -690,7 +693,7 @@ class MaskRCNN:
         )
         return weights_path
 
-    def _get_optimizer(self, learning_rate, momentum):
+    def _get_optimizer(self, learning_rate: float, momentum: float) -> Optimizer:
         """Get the optimizer from config. Only SGD and RMSprop is working
         with actual architecture.
         """
@@ -783,7 +786,7 @@ class MaskRCNN:
             )
             raise ex
 
-    def set_trainable(self, layer_regex, keras_model=None, indent=0, verbose=1):
+    def set_trainable(self, layer_regex: str, keras_model: MaskRCNNModel = None, indent=0, verbose=1):
         """Sets model layers as trainable if their names match
         the given regular expression.
         """
@@ -820,10 +823,11 @@ class MaskRCNN:
                 utilfunctions.log("{}{:20}   ({})".format(" " * indent, layer.name,
                                                           layer.__class__.__name__))
 
-    def set_log_dir(self, model_path: str = None):
+    def set_log_dir(self, model_path: str = None) -> None:
         """Sets the model log directory and epoch counter.
 
-        model_path: If None, or a format different from what this code uses
+        Params:
+        - model_path: If None, or a format different from what this code uses
             then set a new log directory and start epochs from 0. Otherwise,
             extract the log directory and the epoch counter from the file
             name.
@@ -861,42 +865,44 @@ class MaskRCNN:
             "*epoch*", "{epoch:04d}"
         )
 
-    def _write_history(self, history: dict):
+    def _write_history(self, history: dict) -> None:
         file_path = os.path.join(
             self._log_dir, 'history{}.json'.format(self.epoch)
         )
         with open(file_path, 'w') as f:
-            f.write(json.dumps(history.history))
+            f.write(json.dumps(history))
 
     def train(
             self,
-            train_dataset,
-            val_dataset,
-            learning_rate,
-            epochs,
-            layers,
+            train_dataset: Dataset,
+            val_dataset: Dataset,
+            learning_rate: float,
+            epochs: int,
+            layers: str,
             use_early_stopping=True,
-            augmentation=None,
+            augmentation: Callable = None,
             custom_callbacks=None,
             use_clear_memory=False,
             debug=False,
-    ):
+    ) -> dict:
         """Train the model.
-        train_dataset, val_dataset: Training and validation Dataset objects.
-        learning_rate: The learning rate to train with
-        epochs: Number of training epochs. Note that previous training epochs
+
+        Params:
+        - train_dataset, val_dataset: Training and validation Dataset objects.
+        - learning_rate: The learning rate to train with
+        - epochs: Number of training epochs. Note that previous training epochs
                 are considered to be done alreay, so this actually determines
                 the epochs to train in total rather than in this particaular
                 call.
-        layers: Allows selecting wich layers to train. It can be:
-            - A regular expression to match layer names to train
-            - One of these predefined values:
+        - layers: Allows selecting wich layers to train. It can be:
+              A regular expression to match layer names to train
+              One of these predefined values:
               heads: The RPN, classifier and mask heads of the network
               all: All the layers
               3+: Train Resnet stage 3 and up
               4+: Train Resnet stage 4 and up
               5+: Train Resnet stage 5 and up
-        augmentation: Optional. An imgaug (https://github.com/aleju/imgaug)
+        - augmentation: Optional. An imgaug (https://github.com/aleju/imgaug)
             augmentation. For example, passing imgaug.augmenters.Fliplr(0.5)
             flips images right/left 50% of the time. You can pass complex
             augmentations as well. This augmentation applies 50% of the
@@ -907,11 +913,13 @@ class MaskRCNN:
                     imgaug.augmenters.Fliplr(0.5),
                     imgaug.augmenters.GaussianBlur(sigma=(0.0, 5.0))
                 ])
-	    custom_callbacks: Optional. Add custom callbacks to be called
+	    - custom_callbacks: Optional. Add custom callbacks to be called
 	        with the keras fit_generator method. Must be list of type keras.callbacks.
-        no_augmentation_sources: Optional. List of sources to exclude for
+        - no_augmentation_sources: Optional. List of sources to exclude for
             augmentation. A source is string that identifies a dataset and is
             defined in the Dataset class.
+
+        Returns: A dict with data about epochs histogram
         """
         assert self.mode == "training", "Create model in training mode."
         #tf.compat.v1.disable_eager_execution()
@@ -997,14 +1005,15 @@ class MaskRCNN:
                 batch_size=self.config.BATCH_SIZE,
             )
             self.epoch = max(self.epoch, epochs)
-            self._write_history(history)
-            return history
+            self._write_history(history.history)
+            return history.history
         except Exception as ex:
             self._logger.error('Error when training Mask R-CNN {}'.format(ex), exc_info=True)
             raise ex
 
     def train_directly(self, x, y, learning_rate, epochs, layers,
-              augmentation=None, custom_callbacks=None, no_augmentation_sources=None):
+              augmentation=None, custom_callbacks=None, no_augmentation_sources=None) -> History:
+        """!Deprecated. Use train instead."""
         # Pre-defined layer regular expressions
         layer_regex = {
             # all layers but the backbone
@@ -1065,16 +1074,18 @@ class MaskRCNN:
         self.epoch = max(self.epoch, epochs)
         return history
 
-    def mold_inputs(self, images):
+    def mold_inputs(self, images: List[list]) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
         """Takes a list of images and modifies them to the format expected
         as an input to the neural network.
-        images: List of image matrices [height,width,depth]. Images can have
+
+        Params:
+        - images: List of image matrices [height,width,depth]. Images can have
             different sizes.
 
-        Returns 3 Numpy matrices:
-        molded_images: [N, h, w, 3]. Images resized and normalized.
-        image_metas: [N, length of meta data]. Details about each image.
-        windows: [N, (y1, x1, y2, x2)]. The portion of the image that has the
+        Returns: 3 Numpy matrices:
+        - molded_images: [N, h, w, 3]. Images resized and normalized.
+        - image_metas: [N, length of meta data]. Details about each image.
+        - windows: [N, (y1, x1, y2, x2)]. The portion of the image that has the
             original image (padding excluded).
         """
         self._logger.info('Molding input images')
@@ -1106,8 +1117,14 @@ class MaskRCNN:
         self._logger.info('Input image molded successfully!')
         return molded_images, image_metas, windows
 
-    def unmold_detections(self, detections, mrcnn_mask, original_image_shape,
-                          image_shape, window):
+    def unmold_detections(
+            self,
+            detections: np.ndarray,
+            mrcnn_mask: np.ndarray,
+            original_image_shape: list,
+            image_shape: list,
+            window: list
+    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
         """Reformats the detections of one image from the format of the neural
         network output to a format suitable for use in the rest of the
         application.
@@ -1179,16 +1196,17 @@ class MaskRCNN:
 
         return boxes, class_ids, scores, full_masks
 
-    def detect(self, images, verbose=0):
+    def detect(self, images, verbose=0) -> Dict[str, np.ndarray]:
         """Runs the detection pipeline.
 
-        images: List of images, potentially of different sizes.
+        Params:
+        - images: List of images, potentially of different sizes.
 
         Returns a list of dicts, one dict per image. The dict contains:
-        rois: [N, (y1, x1, y2, x2)] detection bounding boxes
-        class_ids: [N] int class IDs
-        scores: [N] float probability scores for the class IDs
-        masks: [H, W, N] instance binary masks
+        - rois: [N, (y1, x1, y2, x2)] detection bounding boxes
+        - class_ids: [N] int class IDs
+        - scores: [N] float probability scores for the class IDs
+        - masks: [H, W, N] instance binary masks
         """
         assert self.mode == "inference", "Create model in inference mode."
         assert len(images) == self.config.BATCH_SIZE, "len(images) must be equal to BATCH_SIZE"
@@ -1224,7 +1242,15 @@ class MaskRCNN:
             image_metas, anchors, windows=windows, verbose=verbose
         )
 
-    def _process_detections(self, images, molded_images, image_metas, anchors, windows=None, verbose=0):
+    def _process_detections(
+            self,
+            images: np.ndarray,
+            molded_images: np.ndarray,
+            image_metas: np.ndarray,
+            anchors: np.ndarray,
+            windows: np.ndarray = None,
+            verbose=0
+    ) -> Dict[str, np.ndarray]:
         self._logger.info('Inserting input data into Mask RCNN')
         try:
             detections, _, _, mrcnn_mask, _, _, _ = self.keras_model.predict(
@@ -1253,7 +1279,12 @@ class MaskRCNN:
             })
         return results
 
-    def detect_molded(self, molded_images, image_metas, verbose=0):
+    def detect_molded(
+            self,
+            molded_images: np.ndarray,
+            image_metas: np.ndarray,
+            verbose=0
+    ) -> Dict[str, np.ndarray]:
         """Runs the detection pipeline, but expect inputs that are
         molded already. Used mostly for debugging and inspecting
         the model.
@@ -1297,7 +1328,7 @@ class MaskRCNN:
             image_metas, anchors
         )
 
-    def get_anchors(self, image_shape):
+    def get_anchors(self, image_shape: list):
         """Returns anchor pyramid for the given image size."""
         backbone_shapes = utilfunctions.compute_backbone_shapes(self.config, image_shape)
         # Cache anchors and reuse if image shape is the same
@@ -1315,11 +1346,13 @@ class MaskRCNN:
             self._anchor_cache[tuple(image_shape)] = utilfunctions.norm_boxes(a, image_shape[:2])
         return self._anchor_cache[tuple(image_shape)]
 
-    def ancestor(self, tensor, name, checked=None):
+    def ancestor(self, tensor: tf.Tensor, name: str, checked: list = None) -> Optional[tf.Tensor]:
         """Finds the ancestor of a TF tensor in the computation graph.
-        tensor: TensorFlow symbolic tensor.
-        name: Name of ancestor tensor to find
-        checked: For internal use. A list of tensors that were already
+
+        Params:
+        - tensor: TensorFlow symbolic tensor.
+        - name: Name of ancestor tensor to find
+        - checked: For internal use. A list of tensors that were already
                  searched to avoid loops in traversing the graph.
         """
         checked = checked if checked is not None else []
@@ -1343,7 +1376,7 @@ class MaskRCNN:
                 return a
         return None
 
-    def find_trainable_layer(self, layer):
+    def find_trainable_layer(self, layer: tf.keras.layers.Layer) -> tf.keras.layers.Layer:
         """If a layer is encapsulated by another layer, this function
         digs through the encapsulation and returns the layer that holds
         the weights.
@@ -1352,7 +1385,7 @@ class MaskRCNN:
             return self.find_trainable_layer(layer.layer)
         return layer
 
-    def get_trainable_layers(self):
+    def get_trainable_layers(self) -> list:
         """Returns a list of layers that have weights."""
         layers = []
         # Loop through all layers
