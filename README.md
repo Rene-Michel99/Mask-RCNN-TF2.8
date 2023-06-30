@@ -3,6 +3,11 @@
 
 Migration of [matterpot](https://github.com/matterport/Mask_RCNN) Mask R-CNN implementation to work in versions starting with Tensorflow 2.8.
 
+# Improvements in this repository
+- Adding bicubic interpolation function for inference mode that improves mask precision.
+- Improved code for better reading and understanding and maintenance.
+- Better training performance.
+
 # Introduction of Mask R-CNN
 
 This is an implementation of [Mask R-CNN](https://arxiv.org/abs/1703.06870) on Python 3, Keras, and TensorFlow. The model generates bounding boxes and segmentation masks for each instance of an object in the image. It's based on Feature Pyramid Network (FPN) and a ResNet101 backbone.
@@ -20,11 +25,6 @@ The repository includes:
 
 
 The code is documented and designed to be easy to extend. If you use it in your research, please consider citing this repository (bibtex below).
-
-# Improvements
-- Adding bicubic interpolation function for inference mode that improves mask precision.
-- Improved code for better reading and understanding and maintenance.
-- Better training performance.
 
 # Getting Started
 * [demo.ipynb](tests/demo.ipynb) Is the easiest way to start. It shows an example of using a model pre-trained on MS COCO to segment objects in your own images.
