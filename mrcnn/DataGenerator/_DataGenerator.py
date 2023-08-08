@@ -2,8 +2,6 @@ import tensorflow.keras.utils as KU
 import numpy as np
 from typing import Callable, Tuple, List, Union, Any, Optional
 
-from numpy import ndarray
-
 from mrcnn.Configs import Config
 from mrcnn.Dataset import Dataset
 from mrcnn.Utils.DataUtils import load_image_gt

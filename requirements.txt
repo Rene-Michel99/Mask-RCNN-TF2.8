@@ -4,5 +4,4 @@ opencv-python
 numpy
 imgaug
 pycocotools
-Pillow==9.0.1
 imutils

@@ -1,7 +1,7 @@
 import os
 import json
+import cv2 as cv
 import numpy as np
-from PIL import Image, ImageDraw
 from typing import Tuple
 
 from ._Dataset import Dataset
@@ -101,10 +101,15 @@ class CustomDataset(Dataset):
 
         for annotation in annotations:
             class_id = annotation['category_id']
-            mask = Image.new('1', (image_info['width'], image_info['height']))
-            mask_draw = ImageDraw.ImageDraw(mask, '1')
+            mask = np.zeros(shape=(image_info['width'], image_info['height']), dtype=np.uint8)
             for segmentation in annotation['segmentation']:
-                mask_draw.polygon(segmentation, fill=1)
+                segmentation = np.array(
+                    [(segmentation[i], segmentation[i+1]) for i in range(0, len(segmentation), 2)],
+                    dtype=np.int32
+                )
+                segmentation = segmentation.reshape((-1, 1, 2))
+                cv.polylines(mask, [segmentation], True, (255, 255, 255), 5)
+                cv.fillPoly(mask, [segmentation], 255)
                 bool_array = np.array(mask) > 0
                 instance_masks.append(bool_array)
                 class_ids.append(class_id)
