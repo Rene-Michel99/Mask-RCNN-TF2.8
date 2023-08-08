@@ -3,6 +3,11 @@
 
 Migration of [matterpot](https://github.com/matterport/Mask_RCNN) Mask R-CNN implementation to work in versions starting with Tensorflow 2.8.
 
+# Improvements in this repository
+- Adding bicubic interpolation function for inference mode that improves mask precision.
+- Improved code for better reading and understanding and maintenance.
+- Better training performance.
+
 # Introduction of Mask R-CNN
 
 This is an implementation of [Mask R-CNN](https://arxiv.org/abs/1703.06870) on Python 3, Keras, and TensorFlow. The model generates bounding boxes and segmentation masks for each instance of an object in the image. It's based on Feature Pyramid Network (FPN) and a ResNet101 backbone.
@@ -20,11 +25,6 @@ The repository includes:
 
 
 The code is documented and designed to be easy to extend. If you use it in your research, please consider citing this repository (bibtex below).
-
-# Improvements
-- Adding bicubic interpolation function for inference mode that improves mask precision.
-- Improved code for better reading and understanding and modification.
-- Better training performance.
 
 # Getting Started
 * [demo.ipynb](tests/demo.ipynb) Is the easiest way to start. It shows an example of using a model pre-trained on MS COCO to segment objects in your own images.
@@ -152,7 +152,7 @@ We found that smaller learning rates converge faster anyway so we go with that.
 
 
 ## Requirements
-Python > 3.4, TensorFlow >= 2.8, Keras >= 2.0.8 and other common packages listed in `requirements.txt`.
+Python >= 3.4, TensorFlow >= 2.8, Keras >= 2.0.8 and other common packages listed in `requirements.txt`.
 
 ### MS COCO Requirements:
 To train or test on MS COCO, you'll also need:
@@ -178,50 +178,3 @@ If you use Docker, the code has been verified to work on
     * Linux: https://github.com/waleedka/coco
     * Windows: https://github.com/philferriere/cocoapi.
     You must have the Visual C++ 2015 build tools on your path (see the repo for additional details)
-
-# Projects Using this Model
-If you extend this model to other datasets or build projects that use it, we'd love to hear from you.
-
-### [4K Video Demo](https://www.youtube.com/watch?v=OOT3UIXZztE) by Karol Majek.
-[![Mask RCNN on 4K Video](assets/4k_video.gif)](https://www.youtube.com/watch?v=OOT3UIXZztE)
-
-### [Images to OSM](https://github.com/jremillard/images-to-osm): Improve OpenStreetMap by adding baseball, soccer, tennis, football, and basketball fields.
-
-![Identify sport fields in satellite images](assets/images_to_osm.png)
-
-### [Splash of Color](https://engineering.matterport.com/splash-of-color-instance-segmentation-with-mask-r-cnn-and-tensorflow-7c761e238b46). A blog post explaining how to train this model from scratch and use it to implement a color splash effect.
-![Balloon Color Splash](assets/balloon_color_splash.gif)
-
-
-### [Segmenting Nuclei in Microscopy Images](samples/nucleus). Built for the [2018 Data Science Bowl](https://www.kaggle.com/c/data-science-bowl-2018)
-Code is in the `samples/nucleus` directory.
-
-![Nucleus Segmentation](assets/nucleus_segmentation.png)
-
-### [Detection and Segmentation for Surgery Robots](https://github.com/SUYEgit/Surgery-Robot-Detection-Segmentation) by the NUS Control & Mechatronics Lab.
-![Surgery Robot Detection and Segmentation](https://github.com/SUYEgit/Surgery-Robot-Detection-Segmentation/raw/master/assets/video.gif)
-
-### [Reconstructing 3D buildings from aerial LiDAR](https://medium.com/geoai/reconstructing-3d-buildings-from-aerial-lidar-with-ai-details-6a81cb3079c0)
-A proof of concept project by [Esri](https://www.esri.com/), in collaboration with Nvidia and Miami-Dade County. Along with a great write up and code by Dmitry Kudinov, Daniel Hedges, and Omar Maher.
-![3D Building Reconstruction](assets/project_3dbuildings.png)
-
-### [Usiigaci: Label-free Cell Tracking in Phase Contrast Microscopy](https://github.com/oist/usiigaci)
-A project from Japan to automatically track cells in a microfluidics platform. Paper is pending, but the source code is released.
-
-![](assets/project_usiigaci1.gif) ![](assets/project_usiigaci2.gif)
-
-### [Characterization of Arctic Ice-Wedge Polygons in Very High Spatial Resolution Aerial Imagery](http://www.mdpi.com/2072-4292/10/9/1487)
-Research project to understand the complex processes between degradations in the Arctic and climate change. By Weixing Zhang, Chandi Witharana, Anna Liljedahl, and Mikhail Kanevskiy.
-![image](assets/project_ice_wedge_polygons.png)
-
-### [Mask-RCNN Shiny](https://github.com/huuuuusy/Mask-RCNN-Shiny)
-A computer vision class project by HU Shiyu to apply the color pop effect on people with beautiful results.
-![](assets/project_shiny1.jpg)
-
-### [Mapping Challenge](https://github.com/crowdAI/crowdai-mapping-challenge-mask-rcnn): Convert satellite imagery to maps for use by humanitarian organisations.
-![Mapping Challenge](assets/mapping_challenge.png)
-
-### [GRASS GIS Addon](https://github.com/ctu-geoforall-lab/i.ann.maskrcnn) to generate vector masks from geospatial imagery. Based on a [Master's thesis](https://github.com/ctu-geoforall-lab-projects/dp-pesek-2018) by Ondřej Pešek.
-![GRASS GIS Image](assets/project_grass_gis.png)
-
-
