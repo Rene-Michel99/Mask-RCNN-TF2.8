@@ -152,7 +152,7 @@ We found that smaller learning rates converge faster anyway so we go with that.
 
 
 ## Requirements
-Python > 3.4, TensorFlow 2.8, Keras 2.0.8 and other common packages listed in `requirements.txt`.
+Python > 3.4, TensorFlow >= 2.8, Keras >= 2.0.8 and other common packages listed in `requirements.txt`.
 
 ### MS COCO Requirements:
 To train or test on MS COCO, you'll also need:
