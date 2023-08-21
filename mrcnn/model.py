@@ -37,7 +37,7 @@ from .CustomLayers import (
     MRCNNMaskLossGraph
 )
 from .CustomKerasModel import MaskRCNNModel
-from .CustomCallbacks import ClearMemory, LoggerTraining
+from .CustomCallbacks import ClearMemory
 from .DataGenerator import DataGenerator
 
 # Requires TensorFlow 2.8+
@@ -922,7 +922,6 @@ class MaskRCNN:
         Returns: A dict with data about epochs histogram
         """
         assert self.mode == "training", "Create model in training mode."
-        #tf.compat.v1.disable_eager_execution()
         # Pre-defined layer regular expressions
         layer_regex = {
             # all layers but the backbone
@@ -965,7 +964,6 @@ class MaskRCNN:
             ))
 
         if debug:
-            callbacks.append(LoggerTraining(logger=self._logger))
             tf.config.set_soft_device_placement(True)
             tf.debugging.experimental.enable_dump_debug_info(
                 self._log_dir + '/train-ops-logs',
