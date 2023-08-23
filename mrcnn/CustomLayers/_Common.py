@@ -299,6 +299,7 @@ def resize_and_crop(
         box = tf.cast(denorm_box(boxes[i], width, height), tf.int32)
         cropped = img[box_ind][box[0]:box[2], box[1]:box[3], :]
         cropped_shape = tf.shape(cropped)
+
         if cropped_shape[0] > 0 and cropped_shape[1] > 0:
             resized = tf.image.resize(cropped, pool_shape, method=method)
             cropped_resized = cropped_resized.write(i, resized)

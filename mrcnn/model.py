@@ -51,7 +51,7 @@ class MaskRCNN:
     The actual Keras model is in the keras_model property.
     """
 
-    def __init__(self, mode: str, config: Config, model_dir='', log_in_file=False):
+    def __init__(self, mode: str, config: Config, model_dir: str = '') -> None:
         """
         mode: Either "training" or "inference"
         config: A Sub-class of the Config class
@@ -69,17 +69,20 @@ class MaskRCNN:
         self._log_dir = ""
         self._checkpoint_path = ""
         self.set_log_dir()
-        self._build_logger(log_in_file)
+        self._build_logger()
         self.epoch = 0
         self._anchor_cache = {}
         self.is_compiled = False
         self.keras_model = self.build(mode=mode, config=config)
 
-    def _build_logger(self, log_in_file):
+    def _build_logger(self) -> None:
+        if self.config.verbose_mode.lower() != "debug":
+            return
+
         self._logger = logging.getLogger('MaskRCNN')
         self._logger.setLevel(logging.DEBUG)
 
-        if log_in_file:
+        if self.config.generate_log:
             level = logging.DEBUG
             if not os.path.exists(self._log_dir):
                 os.system("mkdir '{}'".format(self._log_dir))

@@ -109,13 +109,15 @@ class Config(object):
        - use_parallel_model: Use or not a parallel model, this requires a second GPU
        - use_mask_modifier: Use a mask method manipulator to make mask looks like polygon
          or other shape
+       - verbose_mode: Define mode of the verbose, debug is default and will log almost every action
+       - generate_lod: Define if will generate a log file with all actions executed. Default is False
     """
 
     def __init__(
             self,
             num_classes,                           # type: int
             name,                                  # type: str
-            detection_min_confidence=0.7,          # type: float
+            detection_min_confidence=0.75,         # type: float
             images_per_gpu=1,                      # type: int
             steps_per_epoch=100,                   # type: int
             validation_steps=5,                    # type: int
@@ -125,7 +127,7 @@ class Config(object):
             gpu_count=1,                           # type: int
             compute_backbone_shape=None,           # type: Callable
             backbone_strides=None,                 # type: List[int]
-            fpn_classifier_fc_layer_size=1024,     # type: int
+            fpn_classifier_fc_layers_size=1024,     # type: int
             top_down_pyramid_size=256,             # type: int
             rpn_anchor_scales=None,                # type: Tuple[int]
             rpn_anchor_ratios=None,                # type: List[float]
@@ -166,6 +168,8 @@ class Config(object):
             gradient_clip_norm=5.0,                # type: float
             use_parallel_model=False,              # type: bool
             use_mask_modifier=None,                # type: Union[str, Callable]
+            verbose_mode='debug',                  # type: str
+            generate_log=False,                    # type: bool
     ):
         """Set values of computed attributes."""
         self.NUM_CLASSES = 1 + num_classes
@@ -178,7 +182,7 @@ class Config(object):
         self.DETECTION_MIN_CONFIDENCE = detection_min_confidence
         self.GPU_COUNT = gpu_count
         self.COMPUTE_BACKBONE_SHAPE = compute_backbone_shape
-        self.FPN_CLASSIFIER_FC_LAYERS_SIZE = fpn_classifier_fc_layer_size
+        self.FPN_CLASSIFIER_FC_LAYERS_SIZE = fpn_classifier_fc_layers_size
         self.TOP_DOWN_PYRAMID_SIZE = top_down_pyramid_size
         self.RPN_ANCHOR_STRIDE = rpn_anchor_stride
         self.RPN_NMS_THRESHOLD = rpn_nms_threshold
@@ -208,6 +212,9 @@ class Config(object):
         self.GRADIENT_CLIP_NORM = gradient_clip_norm
         self.USE_PARALLEL_MODEL = use_parallel_model
         self.USE_MASK_MODIFIER = use_mask_modifier
+
+        self.verbose_mode = verbose_mode
+        self.generate_log = generate_log
 
         assert optimizer in ["SGD"], "Optimizer not allowed"
         self.OPTIMIZER = optimizer
