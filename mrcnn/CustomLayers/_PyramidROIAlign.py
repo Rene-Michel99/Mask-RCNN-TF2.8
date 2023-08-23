@@ -2,7 +2,7 @@ import tensorflow as tf
 from typing import List
 
 from ._Common import resize_and_crop
-from ._Interface import Interface
+from mrcnn.Utils.Interface import Interface
 from mrcnn.Utils.utilfunctions import parse_image_meta_graph
 
 
@@ -37,6 +37,7 @@ class PyramidROIAlign(tf.keras.layers.Layer):
 
     def __init__(self, pool_shape: List[int], interpolation_method: str, **kwargs):
         super(PyramidROIAlign, self).__init__(**kwargs)
+
         self.interface = PyramidInterface(tuple(pool_shape), interpolation_method)
 
     @tf.function

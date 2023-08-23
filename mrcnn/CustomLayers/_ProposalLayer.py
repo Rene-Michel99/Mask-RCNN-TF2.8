@@ -3,7 +3,7 @@ import tensorflow as tf
 from tensorflow.python.eager import context
 
 from mrcnn.Utils.utilfunctions import batch_slice
-from ._Interface import Interface
+from mrcnn.Utils.Interface import Interface
 from ._Common import apply_box_deltas_graph, clip_boxes_graph
 
 
@@ -36,6 +36,7 @@ class ProposalLayer(tf.keras.layers.Layer):
             **kwargs
     ):
         super(ProposalLayer, self).__init__(**kwargs)
+
         self.proposal_count = proposal_count
         self.interface = ProposalInterface(config)
 

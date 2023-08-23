@@ -1,6 +1,6 @@
 import tensorflow as tf
 from mrcnn.Utils.utilfunctions import batch_slice
-from ._Interface import Interface
+from mrcnn.Utils.Interface import Interface
 from ._Common import trim_zeros_graph, overlaps_graph, resize_and_crop
 
 
@@ -47,6 +47,7 @@ class DetectionTargetLayer(tf.keras.layers.Layer):
             **kwargs
     ):
         super(DetectionTargetLayer, self).__init__(**kwargs)
+
         self.interface = DetectionTargetInterface(config)
 
         self.batch_slice = batch_slice

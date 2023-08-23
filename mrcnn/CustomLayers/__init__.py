@@ -11,3 +11,4 @@ from ._MRCNNClassLossGraph import MRCNNClassLossGraph
 from ._RPNBboxLoss import RPNBboxLoss
 from ._MRCNNBboxLossGraph import MRCNNBboxLossGraph
 from ._MRCNNMaskLossGraph import MRCNNMaskLossGraph
+from ._SharedConvolutionalLayers import SharedConvolutionalLayers
