@@ -6,7 +6,6 @@ class RPNClassLoss(tf.keras.losses.Loss):
     def __init__(self, **kwargs):
         super(RPNClassLoss, self).__init__(**kwargs)
 
-    @tf.function
     def call(self, y_true, y_pred):
         """RPN anchor classifier loss.
             rpn_match: [batch, anchors, 1]. Anchor match type. 1=positive,

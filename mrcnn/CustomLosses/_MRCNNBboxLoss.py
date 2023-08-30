@@ -7,7 +7,6 @@ class MRCNNBboxLoss(tf.keras.losses.Loss):
     def __init__(self, *args, **kwargs):
         super(MRCNNBboxLoss, self).__init__(**kwargs)
 
-    @tf.function
     def call(self, inputs):
         """Loss for Mask R-CNN bounding box refinement.
 

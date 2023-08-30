@@ -6,7 +6,6 @@ class MRCNNMaskLoss(tf.keras.losses.Loss):
     def __init__(self, *args, **kwargs):
         super(MRCNNMaskLoss, self).__init__(**kwargs)
 
-    @tf.function
     def call(self, inputs):
         """Mask binary cross-entropy loss for the masks head.
 

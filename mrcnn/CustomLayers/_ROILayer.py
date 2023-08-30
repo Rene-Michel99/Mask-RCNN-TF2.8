@@ -7,7 +7,7 @@ from mrcnn.Utils.Interface import Interface
 from ._Common import apply_box_deltas_graph, clip_boxes_graph
 
 
-class ProposalInterface(Interface):
+class ROILayerInterface(Interface):
     def __init__(self, config):
         self.NMS_THRESHOLD = config.RPN_NMS_THRESHOLD
         self.IMAGES_PER_GPU = config.IMAGES_PER_GPU
@@ -15,11 +15,29 @@ class ProposalInterface(Interface):
         self.RPN_BBOX_STD_DEV = config.RPN_BBOX_STD_DEV
 
 
-class ProposalLayer(tf.keras.layers.Layer):
-    """Receives anchor scores and selects a subset to pass as proposals
+class ROILayer(tf.keras.layers.Layer):
+    """
+    The regions obtained from the RPN might be of different shapes, right? Hence,
+    we apply a pooling layer and convert all the regions to the same shape.
+    Next, these regions are passed through a fully connected network so that the class
+    label and bounding boxes are predicted.
+    Till this point, the steps are almost similar to how Faster R-CNN works. Now comes
+    the difference between the two frameworks. In addition to this, Mask R-CNN also generates the
+    segmentation mask.
+
+    For that, we first compute the region of interest so that the computation time can be reduced.
+    For all the predicted regions, we compute the Intersection over Union (IoU) with the ground
+    truth boxes. We can computer IoU like this IoU = Area if intersection / Area of the union.
+
+    Now, only if the IoU is greater than or equal to 0.5, we consider that as a region of interest.
+    Otherwise, we neglect that particular region. We do this for all the regions and then select only
+    a set of regions for which the IoU is greater than 0.5.
+
+    Receives anchor scores and selects a subset to pass as proposals
     to the second stage. Filtering is done based on anchor scores and
     non-max suppression to remove overlaps. It also applies bounding
     box refinement deltas to anchors.
+
 
     Params:
         - rpn_probs: [batch, num_anchors, (bg prob, fg prob)]
@@ -31,14 +49,15 @@ class ProposalLayer(tf.keras.layers.Layer):
 
     def __init__(
             self,
-            proposal_count,
+            mode,
             config,
             **kwargs
     ):
-        super(ProposalLayer, self).__init__(**kwargs)
+        super(ROILayer, self).__init__(**kwargs)
 
-        self.proposal_count = proposal_count
-        self.interface = ProposalInterface(config)
+        self.proposal_count = config.POST_NMS_ROIS_TRAINING if mode == "training" \
+            else config.POST_NMS_ROIS_INFERENCE
+        self.interface = ROILayerInterface(config)
 
         self.batch_slice = batch_slice
         self.apply_box_deltas_graph = apply_box_deltas_graph
@@ -58,6 +77,7 @@ class ProposalLayer(tf.keras.layers.Layer):
 
             Returns: Proposals in normalized coordinates [batch, rois, (y1, x1, y2, x2)]
             """
+        # TODO: Check if nms overlap is broken
         # Box Scores. Use the foreground class confidence. [Batch, num_rois, 1]
         scores = inputs[0][:, :, 1]
         # Box deltas [batch, num_rois, 4]
@@ -102,7 +122,9 @@ class ProposalLayer(tf.keras.layers.Layer):
         def nms(boxes, scores):
             indices = tf.image.non_max_suppression(
                 boxes, scores, self.proposal_count,
-                self.interface.NMS_THRESHOLD, name="rpn_non_max_suppression")
+                self.interface.NMS_THRESHOLD,
+                name="rpn_non_max_suppression"
+            )
             proposals = tf.gather(boxes, indices)
             # Pad if needed
             padding = tf.maximum(self.proposal_count - tf.shape(input=proposals)[0], 0)
@@ -116,13 +138,14 @@ class ProposalLayer(tf.keras.layers.Layer):
             # Infer the static output shape:
             out_shape = self.compute_output_shape(None)
             proposals.set_shape(out_shape)
+
         return proposals
 
     def compute_output_shape(self, input_shape):
         return None, self.proposal_count, 4
 
     def get_config(self):
-        config = super(ProposalLayer, self).get_config()
+        config = super(ROILayer, self).get_config()
         config.update({
             "proposal_count": self.proposal_count,
             "interface": self.interface.to_dict(),

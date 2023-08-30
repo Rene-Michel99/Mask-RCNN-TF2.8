@@ -17,25 +17,18 @@ from .Dataset import Dataset
 from .Configs import Config
 from .Utils import utilfunctions
 from .Utils.DataUtils import mold_image, compose_image_meta
-from .Utils.RpnUtils import (
-    build_rpn_model,
-    fpn_classifier_graph,
-    build_fpn_mask_graph
-)
+from .Utils.RpnUtils import build_rpn_model
 from .CustomLayers import (
-    norm_boxes_graph,
-    ProposalLayer,
-    DetectionLayer,
-    DetectionTargetLayer,
+    ROIPoolingLayer,
     GetAnchors,
     NormBoxesGraph,
     RPNClassLoss,
     RPNBboxLoss,
     MRCNNClassLossGraph,
     MRCNNBboxLossGraph,
-    MRCNNMaskLossGraph,
-    SharedConvolutionalLayers
+    MRCNNMaskLossGraph
 )
+from .MRCNNComponents import RPNComponent, MaskSegmentationComponent, ResnetComponent
 from .CustomKerasModel import MaskRCNNModel
 from .CustomCallbacks import ClearMemory
 from .DataGenerator import DataGenerator
@@ -116,10 +109,13 @@ class MaskRCNN:
             rpn_feature_maps: List[KL.Conv2D]
     ):
         """ Build rpn model.
+        Wwe take the feature maps obtained in the previous step and apply a region proposal network (RPM).
+        This basically predicts if an object is present in that region (or not).
+        In this step, we get those regions or feature maps which the model predicts contain some object.
 
         Params:
         - config: Configuration object
-        - rpn_feature_maps: List of Convolutional layers of RPN
+        - rpn_feature_maps: List of Convolutional layers for RPN
 
         Returns: Tuple of
             - rpn_class_logits: KL.Lambda. Anchor classifier logits (before softmax)
@@ -145,37 +141,17 @@ class MaskRCNN:
         rpn_class_logits, rpn_class, rpn_bbox = outputs
         return rpn_class_logits, rpn_class, rpn_bbox
 
-    @staticmethod
-    def _build_proposals(
-            config: Config,
-            mode: str,
-            rpn_class: KL.Activation,
-            rpn_bbox: KL.Lambda,
-            anchors: Union[KL.Input, GetAnchors]
-    ) -> ProposalLayer:
-        """ Generate proposals. Proposals are [batch, N, (y1, x1, y2, x2)] in normalized coordinates
-        and zero padded.
+    def _get_anchors_layer(self, input_image, image_shape, batch_size):
+        anchors = self._get_anchors(image_shape)
+        # Duplicate across the batch dimension because Keras requires it
+        # TODO: can this be optimized to avoid duplicating the anchors?
+        anchors = np.broadcast_to(anchors, (batch_size,) + anchors.shape)
+        anchors = GetAnchors(  # noqa
+            anchors,
+            name="anchors"
+        )(input_image)
 
-        Params:
-        - config: Configuration object
-        - mode: String. Training or inference mode
-        - rpn_class: KL.Activation. RPN class classifier
-        - rpn_bbox: Can be KL.Input if mode is inference or GetAnchors layer if mode is training.
-        Is the RPN BBOX regressor
-
-        Returns: An ProposalLayer object
-        """
-        # Generate proposals
-        # Proposals are [batch, N, (y1, x1, y2, x2)] in normalized coordinates
-        # and zero padded.
-        proposal_count = config.POST_NMS_ROIS_TRAINING if mode == "training" \
-            else config.POST_NMS_ROIS_INFERENCE
-        rpn_rois = ProposalLayer(  # noqa
-            proposal_count=proposal_count,
-            config=config,
-            name="ROI"
-        )([rpn_class, rpn_bbox, anchors])
-        return rpn_rois
+        return anchors
 
     def _build_training_architecture(
             self,
@@ -192,6 +168,8 @@ class MaskRCNN:
 
         Returns: An MaskRCNNModel object
         """
+
+        # INPUT LAYERS
         # RPN GT
         input_rpn_match = KL.Input(
             shape=[None, 1], name="input_rpn_match", dtype=tf.int32
@@ -226,26 +204,18 @@ class MaskRCNN:
                 name="input_gt_masks", dtype=bool
             )
 
+        # BACKBONE COMPONENT
         # Note that P6 is used in RPN, but not in the classifier heads.
-        rpn_feature_maps, mrcnn_feature_maps = SharedConvolutionalLayers(config)(input_image) # noqa
+        resnet_component = ResnetComponent(input_image, config)
 
-        anchors = self.get_anchors(config.IMAGE_SHAPE)
-        # Duplicate across the batch dimension because Keras requires it
-        # TODO: can this be optimized to avoid duplicating the anchors?
-        anchors = np.broadcast_to(anchors, (config.BATCH_SIZE,) + anchors.shape)
-        anchors = GetAnchors(  # noqa
-            anchors,
-            name="anchors"
-        )(input_image)
-
-        # RPN Model
-        rpn_class_logits, rpn_class, rpn_bbox = self._build_rpn_model(
-            config, rpn_feature_maps
-        )
-
-        # Generate proposals
-        rpn_rois = self._build_proposals(
-            config, 'training', rpn_class, rpn_bbox, anchors
+        # RPN COMPONENT
+        anchors = self._get_anchors_layer(input_image, config.IMAGE_SHAPE, config.BATCH_SIZE)
+        rpn_component = RPNComponent(
+            'training',
+            input_image,
+            resnet_component.rpn_feature_maps,
+            config,
+            anchors
         )
 
         # Class ID mask to mark class IDs supported by the dataset the image
@@ -254,63 +224,46 @@ class MaskRCNN:
             lambda x: utilfunctions.parse_image_meta_graph(x)["active_class_ids"]
         )(input_image_meta)
 
-        input_rois = None
-        if not config.USE_RPN_ROIS:
-            # Ignore predicted ROIs and use ROIs provided as an input.
-            input_rois = KL.Input(shape=[config.POST_NMS_ROIS_TRAINING, 4],
-                                  name="input_roi", dtype=np.int32)
-            # Normalize coordinates
-            target_rois = KL.Lambda(lambda x: norm_boxes_graph(
-                x, K.shape(input_image)[1:3]))(input_rois)
-        else:
-            target_rois = rpn_rois
-
+        # ROI POOLING
         # Generate detection targets
         # Subsamples proposals and generates target outputs for training
         # Note that proposal class IDs, gt_boxes, and gt_masks are zero
         # padded. Equally, returned rois and targets are zero padded.
-        rois, target_class_ids, target_bbox, target_mask = DetectionTargetLayer(  # noqa
+        rois, target_class_ids, target_bbox, target_mask = ROIPoolingLayer(  # noqa
             config,
             name="proposal_targets"
-        )([target_rois, input_gt_class_ids, gt_boxes, input_gt_masks])
-        # Network Heads
-        # TODO: verify that this handles zero padded ROIs
-        mrcnn_class_logits, mrcnn_class, mrcnn_bbox = fpn_classifier_graph(
-            rois, mrcnn_feature_maps, input_image_meta,
-            config.POOL_SIZE, config.NUM_CLASSES,
-            config.INTERPOLATION_METHOD,
-            train_bn=config.TRAIN_BN,
-            fc_layers_size=config.FPN_CLASSIFIER_FC_LAYERS_SIZE
-        )
+        )([rpn_component.target_rois, input_gt_class_ids, gt_boxes, input_gt_masks])
 
-        mrcnn_mask = build_fpn_mask_graph(
-            rois, mrcnn_feature_maps,
+        # MASK SEGMENTATION COMPONENT
+        # Network Heads
+        mask_component = MaskSegmentationComponent(
+            'training',
+            rois,
+            resnet_component.mrcnn_feature_maps,
             input_image_meta,
-            config.MASK_POOL_SIZE,
-            config.NUM_CLASSES,
-            config.INTERPOLATION_METHOD,
-            train_bn=config.TRAIN_BN
+            config
         )
 
         output_rois = KL.Lambda(lambda x: x * 1, name="output_rois")(rois)
 
-        # Losses
+        # LOSSES
+        # TODO: Can this losses be converted to a truly loss function from tensorflow?
         rpn_class_loss = RPNClassLoss(  # noqa
             name="rpn_class_loss"
-        )([input_rpn_match, rpn_class_logits])
+        )([input_rpn_match, rpn_component.rpn_class_logits])
         rpn_bbox_loss = RPNBboxLoss(  # noqa
             config.IMAGES_PER_GPU,
             name="rpn_bbox_loss"
-        )([input_rpn_bbox, input_rpn_match, rpn_bbox])
+        )([input_rpn_bbox, input_rpn_match, rpn_component.rpn_bbox])
         class_loss = MRCNNClassLossGraph(  # noqa
             name="mrcnn_class_loss"
-        )([target_class_ids, mrcnn_class_logits, active_class_ids])
+        )([target_class_ids, mask_component.mrcnn_class_logits, active_class_ids])
         bbox_loss = MRCNNBboxLossGraph(  # noqa
             name="mrcnn_bbox_loss"
-        )([target_bbox, target_class_ids, mrcnn_bbox])
+        )([target_bbox, target_class_ids, mask_component.mrcnn_bbox])
         mask_loss = MRCNNMaskLossGraph(  # noqa
             name="mrcnn_mask_loss"
-        )([target_mask, target_class_ids, mrcnn_mask])
+        )([target_mask, target_class_ids, mask_component.mrcnn_mask])
 
         # Model
         inputs = [
@@ -318,18 +271,19 @@ class MaskRCNN:
             input_rpn_bbox, input_gt_class_ids, input_gt_boxes, input_gt_masks
         ]
         if not config.USE_RPN_ROIS:
-            inputs.append(input_rois)
+            inputs.append(rpn_component.input_rois)
 
         outputs = [
-            rpn_class_logits, rpn_class, rpn_bbox,
-            mrcnn_class_logits, mrcnn_class, mrcnn_bbox, mrcnn_mask,
-            rpn_rois, output_rois, rpn_class_loss,
+            rpn_component.rpn_class_logits, rpn_component.rpn_class, rpn_component.rpn_bbox,
+            mask_component.mrcnn_class_logits, mask_component.mrcnn_class,
+            mask_component.mrcnn_bbox, mask_component.mrcnn_mask,
+            rpn_component.rpn_rois, output_rois, rpn_class_loss,
             rpn_bbox_loss, class_loss, bbox_loss, mask_loss
         ]
         return MaskRCNNModel(inputs, outputs, name='mask_rcnn')
 
+    @staticmethod
     def _build_inference_architecture(
-            self,
             config: Config,
             input_image: KL.Input,
             input_image_meta: KL.Input
@@ -346,50 +300,38 @@ class MaskRCNN:
         # Anchors in normalized coordinates
         input_anchors = KL.Input(shape=[None, 4], name="input_anchors")
 
-        # Note that P6 is used in RPN, but not in the classifier heads.
-        rpn_feature_maps, mrcnn_feature_maps = SharedConvolutionalLayers(config)(input_image) # noqa
+        # BACKBONE
+        resnet_component = ResnetComponent(input_image, config)
 
+        # RPN
         anchors = input_anchors
-        rpn_class_logits, rpn_class, rpn_bbox = self._build_rpn_model(
-            config, rpn_feature_maps
-        )
-
-        rpn_rois = self._build_proposals(
-            config, 'inference', rpn_class, rpn_bbox, anchors
-        )
-
-        # Network Heads
-        # Proposal classifier and BBox regressor heads
-        mrcnn_class_logits, mrcnn_class, mrcnn_bbox = fpn_classifier_graph(
-            rpn_rois, mrcnn_feature_maps, input_image_meta,
-            config.POOL_SIZE, config.NUM_CLASSES,
-            config.INTERPOLATION_METHOD,
-            train_bn=config.TRAIN_BN,
-            fc_layers_size=config.FPN_CLASSIFIER_FC_LAYERS_SIZE
-        )
-
-        # Detections
-        # output is [batch, num_detections, (y1, x1, y2, x2, class_id, score)] in
-        # normalized coordinates
-        detections = DetectionLayer(  # noqa
+        rpn_component = RPNComponent(
+            'inference',
+            input_image,
+            resnet_component.rpn_feature_maps,
             config,
-            name="mrcnn_detection"
-        )([rpn_rois, mrcnn_class, mrcnn_bbox, input_image_meta])
-
-        # Create masks for detections
-        detection_boxes = KL.Lambda(lambda x: x[..., :4])(detections)
-        mrcnn_mask = build_fpn_mask_graph(
-            detection_boxes, mrcnn_feature_maps,
-            input_image_meta,
-            config.MASK_POOL_SIZE,
-            config.NUM_CLASSES,
-            config.INTERPOLATION_METHOD,
-            train_bn=config.TRAIN_BN
+            anchors
         )
+
+        # MASK SEGMENTATION
+        mask_component = MaskSegmentationComponent(
+            'inference',
+            rpn_component.rpn_rois,
+            resnet_component.mrcnn_feature_maps,
+            input_image_meta,
+            config
+        )
+
+        inputs = [input_image, input_image_meta, input_anchors]
+        outputs = [
+            mask_component.detections, mask_component.mrcnn_class,
+            mask_component.mrcnn_bbox, mask_component.mrcnn_mask,
+            rpn_component.rpn_rois, rpn_component.rpn_class, rpn_component.rpn_bbox
+        ]
+
         return MaskRCNNModel(
-            [input_image, input_image_meta, input_anchors],
-            [detections, mrcnn_class, mrcnn_bbox,
-             mrcnn_mask, rpn_rois, rpn_class, rpn_bbox],
+            inputs,
+            outputs,
             name='mask_rcnn'
         )
 
@@ -890,6 +832,7 @@ class MaskRCNN:
         if not os.path.exists(self._log_dir):
             os.makedirs(self._log_dir)
 
+        # TODO: Move callbacks to config class
         # Callbacks
         callbacks = [
             keras.callbacks.TensorBoard(log_dir=self._log_dir,
@@ -1170,7 +1113,7 @@ class MaskRCNN:
                 raise Exception(log_msg)
 
         # Anchors
-        anchors = self.get_anchors(image_shape)
+        anchors = self._get_anchors(image_shape)
         anchors = np.broadcast_to(anchors, (self.config.BATCH_SIZE,) + anchors.shape)
 
         self._logger.info("molded_images data ->  shape: {} - min: {} - max: {}".format(
@@ -1257,7 +1200,7 @@ class MaskRCNN:
             assert g.shape == image_shape, "Images must have the same size"
 
         # Anchors
-        anchors = self.get_anchors(image_shape)
+        anchors = self._get_anchors(image_shape)
         anchors = np.broadcast_to(anchors, (self.config.BATCH_SIZE,) + anchors.shape)
 
         if verbose:
@@ -1271,7 +1214,7 @@ class MaskRCNN:
             image_metas, anchors
         )
 
-    def get_anchors(self, image_shape: list):
+    def _get_anchors(self, image_shape: list):
         """Returns anchor pyramid for the given image size."""
         backbone_shapes = utilfunctions.compute_backbone_shapes(self.config, image_shape)
         # Cache anchors and reuse if image shape is the same

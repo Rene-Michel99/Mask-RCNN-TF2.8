@@ -8,7 +8,7 @@ from mrcnn.CustomLayers import (
     PyramidROIAlign,
     BatchNorm,
     DetectionLayer,
-    DetectionTargetLayer
+    ROIPoolingLayer
 )
 
 
@@ -86,7 +86,7 @@ def build_rpn_model(anchor_stride, anchors_per_location, depth):
 ############################################################
 
 def fpn_classifier_graph(
-        rois: Union[DetectionTargetLayer, DetectionLayer],
+        rois: Union[ROIPoolingLayer, DetectionLayer],
         feature_maps: List[KL.Conv2D],
         image_meta: KL.Input,
         pool_size: int,
@@ -157,7 +157,7 @@ def fpn_classifier_graph(
     return mrcnn_class_logits, mrcnn_probs, mrcnn_bbox
 
 
-def build_fpn_mask_graph(
+def build_fpn_mask_generator(
         rois: KL.Lambda,
         feature_maps: List[KL.Conv2D],
         image_meta: KL.Input,

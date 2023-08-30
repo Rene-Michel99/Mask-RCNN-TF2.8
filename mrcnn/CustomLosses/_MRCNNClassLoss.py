@@ -5,7 +5,6 @@ class MRCNNClassLoss(tf.keras.losses.Loss):
     def __init__(self, *args, **kwargs):
         super(MRCNNClassLoss, self).__init__(**kwargs)
 
-    @tf.function
     def call(self, inputs):
         """Loss for the classifier head of Mask RCNN.
 

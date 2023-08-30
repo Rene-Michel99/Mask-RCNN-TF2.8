@@ -9,7 +9,6 @@ class RPNBboxLoss(tf.keras.losses.Loss):
         super(RPNBboxLoss, self).__init__(**kwargs)
         self.images_per_gpu = images_per_gpu
 
-    @tf.function
     def call(self, inputs):
         """Return the RPN bounding box loss graph.
             target_bbox: [batch, max positive anchors, (dy, dx, log(dh), log(dw))].
