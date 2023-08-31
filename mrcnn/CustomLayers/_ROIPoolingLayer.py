@@ -149,6 +149,7 @@ class ROIPoolingLayer(tf.keras.layers.Layer):
                              self.interface.ROI_POSITIVE_RATIO)
         positive_indices = tf.random.shuffle(positive_indices)[:positive_count]
         positive_count = tf.shape(input=positive_indices)[0]
+
         # Negative ROIs. Add enough to maintain positive:negative ratio.
         r = 1.0 / self.interface.ROI_POSITIVE_RATIO
         negative_count = tf.cast(r * tf.cast(positive_count, tf.float32), tf.int32) - positive_count

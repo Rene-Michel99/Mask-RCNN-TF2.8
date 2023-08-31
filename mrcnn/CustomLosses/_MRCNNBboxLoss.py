@@ -7,16 +7,21 @@ class MRCNNBboxLoss(tf.keras.losses.Loss):
     def __init__(self, *args, **kwargs):
         super(MRCNNBboxLoss, self).__init__(**kwargs)
 
-    def call(self, inputs):
+        self.metric = None
+
+    def add_metric(self, loss, name):
+        self.metric = loss
+
+    def call(self, y_true, y_pred):
         """Loss for Mask R-CNN bounding box refinement.
 
             target_bbox: [batch, num_rois, (dy, dx, log(dh), log(dw))]
             target_class_ids: [batch, num_rois]. Integer class IDs.
             pred_bbox: [batch, num_rois, num_classes, (dy, dx, log(dh), log(dw))]
             """
-        target_bbox = inputs[0]
-        target_class_ids = inputs[1]
-        pred_bbox = inputs[2]
+        target_bbox = y_pred[11]
+        target_class_ids = y_pred[9]
+        pred_bbox = y_pred[5]
 
         # Reshape to merge batch and roi dimensions for simplicity.
         target_class_ids = K.reshape(target_class_ids, (-1,))
@@ -43,4 +48,5 @@ class MRCNNBboxLoss(tf.keras.losses.Loss):
             tf.constant(0.0)
         )
         loss = K.mean(loss)
+        self.add_metric(tf.reduce_mean(loss) * 1., name="mrcnn_bbox_loss")
         return loss

@@ -17,16 +17,17 @@ from .Dataset import Dataset
 from .Configs import Config
 from .Utils import utilfunctions
 from .Utils.DataUtils import mold_image, compose_image_meta
-from .Utils.RpnUtils import build_rpn_model
 from .CustomLayers import (
     ROIPoolingLayer,
     GetAnchors,
     NormBoxesGraph,
-    RPNClassLoss,
+)
+from .CustomLosses import (
+    MRCNNBboxLoss,
+    MRCNNClassLoss,
+    MRCNNMaskLoss,
     RPNBboxLoss,
-    MRCNNClassLossGraph,
-    MRCNNBboxLossGraph,
-    MRCNNMaskLossGraph
+    RPNClassLoss
 )
 from .MRCNNComponents import RPNComponent, MaskSegmentationComponent, ResnetComponent
 from .CustomKerasModel import MaskRCNNModel
@@ -102,44 +103,6 @@ class MaskRCNN:
 
         config = config if config is not None else self.config
         self.keras_model = self.build(mode=mode, config=config)
-
-    @staticmethod
-    def _build_rpn_model(
-            config: Config,
-            rpn_feature_maps: List[KL.Conv2D]
-    ):
-        """ Build rpn model.
-        Wwe take the feature maps obtained in the previous step and apply a region proposal network (RPM).
-        This basically predicts if an object is present in that region (or not).
-        In this step, we get those regions or feature maps which the model predicts contain some object.
-
-        Params:
-        - config: Configuration object
-        - rpn_feature_maps: List of Convolutional layers for RPN
-
-        Returns: Tuple of
-            - rpn_class_logits: KL.Lambda. Anchor classifier logits (before softmax)
-            - rpn_class: KL.Activation. RPN Classes classifier
-            - rpn_bbox: KL.Lambda. Deltas to be applied to anchors
-        """
-        # RPN Model
-        rpn = build_rpn_model(config.RPN_ANCHOR_STRIDE,
-                              len(config.RPN_ANCHOR_RATIOS), config.TOP_DOWN_PYRAMID_SIZE)
-        # Loop through pyramid layers
-        layer_outputs = []  # list of lists
-        for p in rpn_feature_maps:
-            layer_outputs.append(rpn([p]))
-        # Concatenate layer outputs
-        # Convert from list of lists of level outputs to list of lists
-        # of outputs across levels.
-        # e.g. [[a1, b1, c1], [a2, b2, c2]] => [[a1, a2], [b1, b2], [c1, c2]]
-        output_names = ["rpn_class_logits", "rpn_class", "rpn_bbox"]
-        outputs = list(zip(*layer_outputs))
-        outputs = [KL.Concatenate(axis=1, name=n)(list(o))
-                   for o, n in zip(outputs, output_names)]
-
-        rpn_class_logits, rpn_class, rpn_bbox = outputs
-        return rpn_class_logits, rpn_class, rpn_bbox
 
     def _get_anchors_layer(self, input_image, image_shape, batch_size):
         anchors = self._get_anchors(image_shape)
@@ -248,7 +211,7 @@ class MaskRCNN:
 
         # LOSSES
         # TODO: Can this losses be converted to a truly loss function from tensorflow?
-        rpn_class_loss = RPNClassLoss(  # noqa
+        '''rpn_class_loss = RPNClassLoss(  # noqa
             name="rpn_class_loss"
         )([input_rpn_match, rpn_component.rpn_class_logits])
         rpn_bbox_loss = RPNBboxLoss(  # noqa
@@ -263,7 +226,7 @@ class MaskRCNN:
         )([target_bbox, target_class_ids, mask_component.mrcnn_bbox])
         mask_loss = MRCNNMaskLossGraph(  # noqa
             name="mrcnn_mask_loss"
-        )([target_mask, target_class_ids, mask_component.mrcnn_mask])
+        )([target_mask, target_class_ids, mask_component.mrcnn_mask])'''
 
         # Model
         inputs = [
@@ -277,10 +240,12 @@ class MaskRCNN:
             rpn_component.rpn_class_logits, rpn_component.rpn_class, rpn_component.rpn_bbox,
             mask_component.mrcnn_class_logits, mask_component.mrcnn_class,
             mask_component.mrcnn_bbox, mask_component.mrcnn_mask,
-            rpn_component.rpn_rois, output_rois, rpn_class_loss,
-            rpn_bbox_loss, class_loss, bbox_loss, mask_loss
+            rpn_component.rpn_rois, output_rois, target_class_ids, active_class_ids,
+            target_bbox, target_mask
         ]
-        return MaskRCNNModel(inputs, outputs, name='mask_rcnn')
+        model = MaskRCNNModel(inputs, outputs, name='mask_rcnn')
+        model.build(config)
+        return model
 
     @staticmethod
     def _build_inference_architecture(
@@ -631,7 +596,8 @@ class MaskRCNN:
                 "mrcnn_class_loss", "mrcnn_bbox_loss", "mrcnn_mask_loss"
             ]
             if not self.is_compiled:
-                for name in loss_names:
+                pass
+                '''for name in loss_names:
                     layer = self.keras_model.get_layer(name)
                     if name == "mrcnn_class_loss":
                         calc_loss = (tf.reshape(
@@ -641,12 +607,12 @@ class MaskRCNN:
                         calc_loss = (tf.reduce_mean(layer.output, keepdims=True) * self.config.LOSS_WEIGHTS.get(name, 1.))
                     self.keras_model.add_loss(
                         calc_loss
-                    )
+                    )'''
 
-            losses_functions = [None] * len(self.keras_model.outputs)
+            #losses_functions = [None] * len(self.keras_model.outputs)
             # Add L2 Regularization
             # Skip gamma and beta weights of batch normalization layers.
-            if self.config.OPTIMIZER == 'SGD' and not self.is_compiled:
+            '''if self.config.OPTIMIZER == 'SGD' and not self.is_compiled:
                 self.keras_model.add_loss(
                     lambda: tf.add_n([
                         keras.regularizers.l2(self.config.WEIGHT_DECAY)(w) / tf.cast(tf.size(input=w), tf.float32)
@@ -658,12 +624,9 @@ class MaskRCNN:
                 losses_functions = [
                     "categorical_crossentropy" if output.name in loss_names else None
                     for output in self.keras_model.outputs
-                ]
+                ]'''
             # Compile
-            self.keras_model.compile(
-                optimizer=optimizer,
-                loss=losses_functions
-            )
+            self.keras_model.compile(optimizer=optimizer)
             self.is_compiled = True
             self._logger.info("Model compiled successfully!")
         except Exception as ex:
@@ -1136,7 +1099,7 @@ class MaskRCNN:
             anchors: np.ndarray,
             windows: np.ndarray = None,
             verbose=0
-    ) -> Dict[str, np.ndarray]:
+    ) -> List[Dict[str, np.ndarray]]:
         self._logger.info('Inserting input data into Mask RCNN')
         try:
             detections, _, _, mrcnn_mask, _, _, _ = self.keras_model.predict(
