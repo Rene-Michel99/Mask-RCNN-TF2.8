@@ -9,6 +9,7 @@ class RPNBboxLoss(tf.keras.losses.Loss):
         super(RPNBboxLoss, self).__init__(**kwargs)
         self.images_per_gpu = images_per_gpu
         self.metric = None
+        self.name = "rpn_bbox_loss"
 
     def add_metric(self, loss, name):
         self.metric = loss
@@ -44,7 +45,7 @@ class RPNBboxLoss(tf.keras.losses.Loss):
 
         loss = K.switch(tf.size(input=loss) > 0, K.mean(loss), tf.constant(0.0))
         self.add_metric(tf.reduce_mean(loss) * 1., name="rpn_bbox_loss")
-        return loss
+        return tf.reduce_mean(loss, keepdims=True) * 1.
 
     def get_config(self):
         config = super().get_config()

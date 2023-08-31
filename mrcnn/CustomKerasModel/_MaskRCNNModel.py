@@ -6,12 +6,23 @@ from mrcnn.CustomLosses import *
 
 class MaskRCNNModel(Model):
 
-    def build(self, config):
-        self.rpn_class_loss = RPNClassLoss()
-        self.rpn_bbox_loss = RPNBboxLoss(config.IMAGES_PER_GPU)
-        self.mrcnn_class_loss = MRCNNClassLoss()
-        self.mrcnn_bbox_loss = MRCNNBboxLoss()
-        self.mrcnn_mask_loss = MRCNNMaskLoss()
+    def build_losses(self, config):
+        self.custom_losses = []
+        self.custom_losses.append(RPNClassLoss())
+        self.custom_losses.append(RPNBboxLoss(config.IMAGES_PER_GPU))
+        self.custom_losses.append(MRCNNClassLoss())
+        self.custom_losses.append(MRCNNBboxLoss())
+        self.custom_losses.append(MRCNNBboxLoss())
+        self.custom_losses.append(MRCNNMaskLoss())
+
+    def calc_losses(self, x, y):
+        total_loss = 0
+        for loss_fn in self.custom_losses:
+            if hasattr(loss_fn, "metric"):
+                total_loss += loss_fn(x, y)
+            else:
+                loss_fn()
+        return total_loss
 
     def same_rank_losses(self):
         for i in range(len(self.losses)):
@@ -25,12 +36,8 @@ class MaskRCNNModel(Model):
             y_pred = self(x, training=True) # noqa
             '''if y in [None, [], ()]:
                 y_pred = []'''
-            #loss = self.compiled_loss(y, y_pred, regularization_losses=self.losses)
-            loss = self.rpn_class_loss(x, y_pred)
-            loss += self.rpn_bbox_loss(x, y_pred)
-            loss += self.mrcnn_class_loss(x, y_pred)
-            loss += self.mrcnn_bbox_loss(x, y_pred)
-            loss += self.mrcnn_mask_loss(x, y_pred)
+            #loss = self.compiled_loss(x, y_pred, regularization_losses=self.losses)
+            loss = self.calc_losses(x, y_pred)
 
         # Compute gradients
         trainable_vars = self.trainable_variables
@@ -41,12 +48,7 @@ class MaskRCNNModel(Model):
 
         # Update metrics (includes the metric that tracks the loss)
         self.compiled_metrics.update_state(y, [])
-        metrics = {
-            'rpn_class_loss': self.rpn_class_loss.metric,
-            'rpn_bbox_loss': self.rpn_bbox_loss.metric,
-            'mrcnn_class_loss': self.mrcnn_class_loss.metric,
-            'mrcnn_bbox_loss': self.mrcnn_bbox_loss.metric,
-            'mrcnn_mask_loss': self.mrcnn_mask_loss.metric
-        }
+        metrics = {loss.name: loss.metric for loss in self.custom_losses if hasattr(loss, 'metric')}
+        metrics['loss'] = loss
 
         return metrics

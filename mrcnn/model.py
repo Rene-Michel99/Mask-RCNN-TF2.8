@@ -243,9 +243,7 @@ class MaskRCNN:
             rpn_component.rpn_rois, output_rois, target_class_ids, active_class_ids,
             target_bbox, target_mask
         ]
-        model = MaskRCNNModel(inputs, outputs, name='mask_rcnn')
-        model.build(config)
-        return model
+        return MaskRCNNModel(inputs, outputs, name='mask_rcnn')
 
     @staticmethod
     def _build_inference_architecture(
@@ -570,22 +568,11 @@ class MaskRCNN:
                 clipnorm=self.config.GRADIENT_CLIP_NORM,
             )
 
-    def compile(self, learning_rate: float, momentum: float, limit_device=False):
+    def compile(self, learning_rate: float, momentum: float):
         """Gets the model ready for training. Adds losses, regularization, and
         metrics. Then calls the Keras compile() function.
         """
         self._logger.info("Building compiler")
-        if limit_device:
-            gpus = tf.config.experimental.list_physical_devices('GPU')
-            try:
-                tf.config.experimental.set_virtual_device_configuration(
-                    gpus[0],
-                    [tf.config.experimental.VirtualDeviceConfiguration(memory_limit=1024)]
-                )
-            except Exception as ex:
-                self._logger.error('Error when limiting device - {}'.format(ex), exc_info=True)
-                raise ex
-
         try:
             # Optimizer object
             optimizer = self._get_optimizer(learning_rate, momentum)
@@ -612,7 +599,8 @@ class MaskRCNN:
             #losses_functions = [None] * len(self.keras_model.outputs)
             # Add L2 Regularization
             # Skip gamma and beta weights of batch normalization layers.
-            '''if self.config.OPTIMIZER == 'SGD' and not self.is_compiled:
+            self.keras_model.build_losses(self.config)
+            if self.config.OPTIMIZER == 'SGD' and not self.is_compiled:
                 self.keras_model.add_loss(
                     lambda: tf.add_n([
                         keras.regularizers.l2(self.config.WEIGHT_DECAY)(w) / tf.cast(tf.size(input=w), tf.float32)
@@ -624,7 +612,7 @@ class MaskRCNN:
                 losses_functions = [
                     "categorical_crossentropy" if output.name in loss_names else None
                     for output in self.keras_model.outputs
-                ]'''
+                ]
             # Compile
             self.keras_model.compile(optimizer=optimizer)
             self.is_compiled = True

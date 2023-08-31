@@ -8,6 +8,7 @@ class MRCNNBboxLoss(tf.keras.losses.Loss):
         super(MRCNNBboxLoss, self).__init__(**kwargs)
 
         self.metric = None
+        self.name = "mrcnn_bbox_loss"
 
     def add_metric(self, loss, name):
         self.metric = loss
@@ -49,4 +50,4 @@ class MRCNNBboxLoss(tf.keras.losses.Loss):
         )
         loss = K.mean(loss)
         self.add_metric(tf.reduce_mean(loss) * 1., name="mrcnn_bbox_loss")
-        return loss
+        return tf.reduce_mean(loss, keepdims=True) * 1.

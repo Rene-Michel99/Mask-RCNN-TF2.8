@@ -6,6 +6,7 @@ class RPNClassLoss(tf.keras.losses.Loss):
     def __init__(self, **kwargs):
         super(RPNClassLoss, self).__init__(**kwargs)
 
+        self.name = "rpn_class_loss"
         self.metric = None
 
     def add_metric(self, loss, name):
@@ -38,4 +39,4 @@ class RPNClassLoss(tf.keras.losses.Loss):
 
         loss = K.switch(tf.size(loss) > 0, K.mean(loss), tf.constant(0.0))
         self.add_metric(tf.reduce_mean(loss) * 1., name="rpn_class_loss")
-        return tf.reduce_mean(loss)
+        return tf.reduce_mean(loss, keepdims=True) * 1.

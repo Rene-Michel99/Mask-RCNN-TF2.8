@@ -7,6 +7,7 @@ class MRCNNMaskLoss(tf.keras.losses.Loss):
         super(MRCNNMaskLoss, self).__init__(**kwargs)
 
         self.metric = None
+        self.name = "mrcnn_mask_loss"
 
     def add_metric(self, loss, name):
         self.metric = loss
@@ -54,4 +55,4 @@ class MRCNNMaskLoss(tf.keras.losses.Loss):
         )
         loss = K.mean(loss)
         self.add_metric(tf.reduce_mean(loss) * 1., name="mrcnn_mask_loss")
-        return loss
+        return tf.reduce_mean(loss, keepdims=True) * 1.
