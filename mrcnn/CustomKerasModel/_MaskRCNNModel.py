@@ -34,8 +34,6 @@ class MaskRCNNModel(Model):
 
         with tf.GradientTape() as tape:
             y_pred = self(x, training=True) # noqa
-            '''if y in [None, [], ()]:
-                y_pred = []'''
             #loss = self.compiled_loss(x, y_pred, regularization_losses=self.losses)
             loss = self.calc_losses(x, y_pred)
 

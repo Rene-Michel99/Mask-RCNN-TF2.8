@@ -577,42 +577,7 @@ class MaskRCNN:
             # Optimizer object
             optimizer = self._get_optimizer(learning_rate, momentum)
 
-            # Add Losses
-            loss_names = [
-                "rpn_class_loss", "rpn_bbox_loss",
-                "mrcnn_class_loss", "mrcnn_bbox_loss", "mrcnn_mask_loss"
-            ]
-            if not self.is_compiled:
-                pass
-                '''for name in loss_names:
-                    layer = self.keras_model.get_layer(name)
-                    if name == "mrcnn_class_loss":
-                        calc_loss = (tf.reshape(
-                            tf.reduce_mean(layer.output, keepdims=True) * self.config.LOSS_WEIGHTS.get(name, 1.), []
-                        ))
-                    else:
-                        calc_loss = (tf.reduce_mean(layer.output, keepdims=True) * self.config.LOSS_WEIGHTS.get(name, 1.))
-                    self.keras_model.add_loss(
-                        calc_loss
-                    )'''
-
-            #losses_functions = [None] * len(self.keras_model.outputs)
-            # Add L2 Regularization
-            # Skip gamma and beta weights of batch normalization layers.
             self.keras_model.build_losses(self.config)
-            if self.config.OPTIMIZER == 'SGD' and not self.is_compiled:
-                self.keras_model.add_loss(
-                    lambda: tf.add_n([
-                        keras.regularizers.l2(self.config.WEIGHT_DECAY)(w) / tf.cast(tf.size(input=w), tf.float32)
-                        for w in self.keras_model.trainable_weights
-                        if 'gamma' not in w.name and 'beta' not in w.name]
-                    )
-                )
-            else:
-                losses_functions = [
-                    "categorical_crossentropy" if output.name in loss_names else None
-                    for output in self.keras_model.outputs
-                ]
             # Compile
             self.keras_model.compile(optimizer=optimizer)
             self.is_compiled = True
