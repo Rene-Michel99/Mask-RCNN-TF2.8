@@ -998,7 +998,7 @@ class MaskRCNN:
 
         return boxes, class_ids, scores, full_masks
 
-    def detect(self, images, verbose=0) -> Dict[str, np.ndarray]:
+    def detect(self, images, verbose=0) -> List[Dict[str, np.ndarray]]:
         """Runs the detection pipeline.
 
         Params:
