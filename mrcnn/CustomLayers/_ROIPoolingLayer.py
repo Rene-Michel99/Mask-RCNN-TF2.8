@@ -1,10 +1,10 @@
 import tensorflow as tf
 from mrcnn.Utils.utilfunctions import batch_slice
-from ._Interface import Interface
+from mrcnn.Utils.Interface import Interface
 from ._Common import trim_zeros_graph, overlaps_graph, resize_and_crop
 
 
-class DetectionTargetInterface(Interface):
+class ROIPoolingInterface(Interface):
     def __init__(self, config):
         self.IMAGES_PER_GPU = config.IMAGES_PER_GPU
         self.TRAIN_ROIS_PER_IMAGE = config.TRAIN_ROIS_PER_IMAGE
@@ -15,8 +15,7 @@ class DetectionTargetInterface(Interface):
         self.INTERPOLATION_METHOD = config.INTERPOLATION_METHOD
 
 
-
-class DetectionTargetLayer(tf.keras.layers.Layer):
+class ROIPoolingLayer(tf.keras.layers.Layer):
     """Subsamples proposals and generates target box refinement, class_ids,
     and masks for each.
 
@@ -46,8 +45,9 @@ class DetectionTargetLayer(tf.keras.layers.Layer):
             config,
             **kwargs
     ):
-        super(DetectionTargetLayer, self).__init__(**kwargs)
-        self.interface = DetectionTargetInterface(config)
+        super(ROIPoolingLayer, self).__init__(**kwargs)
+
+        self.interface = ROIPoolingInterface(config)
 
         self.batch_slice = batch_slice
 
@@ -149,6 +149,7 @@ class DetectionTargetLayer(tf.keras.layers.Layer):
                              self.interface.ROI_POSITIVE_RATIO)
         positive_indices = tf.random.shuffle(positive_indices)[:positive_count]
         positive_count = tf.shape(input=positive_indices)[0]
+
         # Negative ROIs. Add enough to maintain positive:negative ratio.
         r = 1.0 / self.interface.ROI_POSITIVE_RATIO
         negative_count = tf.cast(r * tf.cast(positive_count, tf.float32), tf.int32) - positive_count

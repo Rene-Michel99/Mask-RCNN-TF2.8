@@ -6,7 +6,12 @@ class RPNClassLoss(tf.keras.losses.Loss):
     def __init__(self, **kwargs):
         super(RPNClassLoss, self).__init__(**kwargs)
 
-    @tf.function
+        self.name = "rpn_class_loss"
+        self.metric = None
+
+    def add_metric(self, loss, name):
+        self.metric = loss
+
     def call(self, y_true, y_pred):
         """RPN anchor classifier loss.
             rpn_match: [batch, anchors, 1]. Anchor match type. 1=positive,
@@ -14,8 +19,8 @@ class RPNClassLoss(tf.keras.losses.Loss):
             rpn_class_logits: [batch, anchors, 2]. RPN classifier logits for BG/FG.
             """
         # Squeeze last dim to simplify
-        rpn_match = tf.squeeze(y_true, -1)
-        rpn_class_logits = y_pred
+        rpn_match = tf.squeeze(y_true[2], -1)
+        rpn_class_logits = y_pred[0]
 
         # Get anchor classes. Convert the -1/+1 match to 0/1 values.
         anchor_class = tf.cast(tf.equal(rpn_match, 1), tf.int32)
@@ -33,4 +38,5 @@ class RPNClassLoss(tf.keras.losses.Loss):
         )
 
         loss = K.switch(tf.size(loss) > 0, K.mean(loss), tf.constant(0.0))
-        return tf.reduce_mean(loss)
+        self.add_metric(tf.reduce_mean(loss) * 1., name="rpn_class_loss")
+        return tf.reduce_mean(loss, keepdims=True) * 1.

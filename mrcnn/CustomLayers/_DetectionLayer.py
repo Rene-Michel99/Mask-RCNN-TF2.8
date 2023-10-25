@@ -1,5 +1,5 @@
 import tensorflow as tf
-from ._Interface import Interface
+from mrcnn.Utils.Interface import Interface
 from ._Common import norm_boxes_graph, refine_detections_graph
 from mrcnn.Configs import Config
 from mrcnn.Utils.utilfunctions import batch_slice, parse_image_meta_graph
@@ -25,6 +25,7 @@ class DetectionLayer(tf.keras.layers.Layer):
 
     def __init__(self, config: Config, **kwargs):
         super(DetectionLayer, self).__init__(**kwargs)
+
         self.interface = DetectionInterface(config)
 
         self.refine_detections_graph = refine_detections_graph

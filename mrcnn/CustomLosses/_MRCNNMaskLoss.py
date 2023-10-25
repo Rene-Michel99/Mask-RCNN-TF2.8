@@ -6,8 +6,13 @@ class MRCNNMaskLoss(tf.keras.losses.Loss):
     def __init__(self, *args, **kwargs):
         super(MRCNNMaskLoss, self).__init__(**kwargs)
 
-    @tf.function
-    def call(self, inputs):
+        self.metric = None
+        self.name = "mrcnn_mask_loss"
+
+    def add_metric(self, loss, name):
+        self.metric = loss
+
+    def call(self, y_true, y_pred):
         """Mask binary cross-entropy loss for the masks head.
 
             target_masks: [batch, num_rois, height, width].
@@ -16,10 +21,10 @@ class MRCNNMaskLoss(tf.keras.losses.Loss):
             pred_masks: [batch, proposals, height, width, num_classes] float32 tensor
                         with values from 0 to 1.
             """
-        target_masks = inputs[0]
+        target_masks = y_pred[12]
         # Reshape for simplicity. Merge first two dimensions into one.
-        target_class_ids = tf.reshape(inputs[1], (-1,))
-        pred_masks = inputs[2]
+        target_class_ids = tf.reshape(y_pred[9], (-1,))
+        pred_masks = y_pred[6]
 
         mask_shape = tf.shape(target_masks)
         target_masks = tf.reshape(target_masks, (-1, mask_shape[2], mask_shape[3]))
@@ -49,4 +54,5 @@ class MRCNNMaskLoss(tf.keras.losses.Loss):
             tf.constant(0.0)
         )
         loss = K.mean(loss)
-        return loss
+        self.add_metric(tf.reduce_mean(loss) * 1., name="mrcnn_mask_loss")
+        return tf.reduce_mean(loss, keepdims=True) * 1.

@@ -1,34 +1,9 @@
 import tensorflow.keras.layers as KL
-import tensorflow.keras.models as KM
 from mrcnn.CustomLayers import BatchNorm
-from .RpnUtils import rpn_graph
 
 
 # Code adopted from:
 # https://github.com/fchollet/deep-learning-models/blob/master/resnet50.py
-
-
-def build_rpn_model(anchor_stride, anchors_per_location, depth):
-    """Builds a Keras model of the Region Proposal Network.
-    It wraps the RPN graph so it can be used multiple times with shared
-    weights.
-
-    Params:
-    - anchors_per_location: number of anchors per pixel in the feature map
-    - anchor_stride: Controls the density of anchors. Typically 1 (anchors for
-                   every pixel in the feature map), or 2 (every other pixel).
-    - depth: Depth of the backbone feature map.
-
-    Returns: a Keras Model object. The model outputs, when called, are:
-    - rpn_class_logits: [batch, H * W * anchors_per_location, 2] Anchor classifier logits (before softmax)
-    - rpn_probs: [batch, H * W * anchors_per_location, 2] Anchor classifier probabilities.
-    - rpn_bbox: [batch, H * W * anchors_per_location, (dy, dx, log(dh), log(dw))] Deltas to be
-                applied to anchors.
-    """
-    input_feature_map = KL.Input(shape=[None, None, depth],
-                                 name="input_rpn_feature_map")
-    outputs = rpn_graph(input_feature_map, anchors_per_location, anchor_stride)
-    return KM.Model([input_feature_map], outputs, name="rpn_model")
 
 
 def conv_block(input_tensor, kernel_size, filters, stage, block,
