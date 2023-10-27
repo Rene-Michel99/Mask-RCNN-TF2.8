@@ -12,6 +12,7 @@ class Config(object):
        - gpu_count: Number of GPUs to use. When using only CPU sets to 1
        - images_per_gpu: Number of images to train on each GPU. A 12GB GPU can typically
          handle 2 images of 1024x1024px
+       - class_names: Class names presents in the dataset. Including BG!
        - interpolation_method: Interpolation method used in resize, can be bicubic, bilinear and nearest
        - steps_per_epoch: Number of training steps per epoch. Doesn't need to match the
          size of the dataset.
@@ -118,6 +119,7 @@ class Config(object):
             num_classes,                           # type: int
             name,                                  # type: str
             detection_min_confidence=0.75,         # type: float
+            class_names=None,                      # type: List[str]
             images_per_gpu=1,                      # type: int
             steps_per_epoch=100,                   # type: int
             validation_steps=5,                    # type: int
@@ -175,6 +177,7 @@ class Config(object):
         self.NUM_CLASSES = 1 + num_classes
         self.NAME = name
         self.IMAGES_PER_GPU = images_per_gpu
+        self.CLASS_NAMES = class_names
         self.STEPS_PER_EPOCH = steps_per_epoch
         self.VALIDATION_STEPS = validation_steps
         self.INTERPOLATION_METHOD = interpolation_method
