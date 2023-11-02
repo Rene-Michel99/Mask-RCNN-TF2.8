@@ -67,7 +67,7 @@ class MaskRCNN:
         self.epoch = 0
         self._anchor_cache = {}
         self.is_compiled = False
-	self.using_weights = ""
+		self.using_weights = ""
         self.keras_model = self.build(mode=mode, config=config)
 
     def _build_logger(self) -> None:
@@ -438,7 +438,7 @@ class MaskRCNN:
         skip_mismatch = self.mode == 'training'
         try:
             self.keras_model.load_weights(filepath, by_name=by_name, skip_mismatch=skip_mismatch)
-	    self.using_weights = filepath
+			self.using_weights = filepath
             # Update the log directory
             self.set_log_dir(filepath)
         except Exception as ex:
