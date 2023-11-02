@@ -437,7 +437,7 @@ class MaskRCNN:
         skip_mismatch = self.mode == 'training'
         try:
             self.keras_model.load_weights(filepath, by_name=by_name, skip_mismatch=skip_mismatch)
-			self.using_weights = filepath
+            self.using_weights = filepath
             # Update the log directory
             self.set_log_dir(filepath)
         except Exception as ex:
