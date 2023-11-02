@@ -67,6 +67,7 @@ class MaskRCNN:
         self.epoch = 0
         self._anchor_cache = {}
         self.is_compiled = False
+        self.using_weights = ""
         self.keras_model = self.build(mode=mode, config=config)
 
     def _build_logger(self) -> None:
