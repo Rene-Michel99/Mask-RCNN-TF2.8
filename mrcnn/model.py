@@ -210,25 +210,6 @@ class MaskRCNN:
 
         output_rois = KL.Lambda(lambda x: x * 1, name="output_rois")(rois)
 
-        # LOSSES
-        # TODO: Can this losses be converted to a truly loss function from tensorflow?
-        '''rpn_class_loss = RPNClassLoss(  # noqa
-            name="rpn_class_loss"
-        )([input_rpn_match, rpn_component.rpn_class_logits])
-        rpn_bbox_loss = RPNBboxLoss(  # noqa
-            config.IMAGES_PER_GPU,
-            name="rpn_bbox_loss"
-        )([input_rpn_bbox, input_rpn_match, rpn_component.rpn_bbox])
-        class_loss = MRCNNClassLossGraph(  # noqa
-            name="mrcnn_class_loss"
-        )([target_class_ids, mask_component.mrcnn_class_logits, active_class_ids])
-        bbox_loss = MRCNNBboxLossGraph(  # noqa
-            name="mrcnn_bbox_loss"
-        )([target_bbox, target_class_ids, mask_component.mrcnn_bbox])
-        mask_loss = MRCNNMaskLossGraph(  # noqa
-            name="mrcnn_mask_loss"
-        )([target_mask, target_class_ids, mask_component.mrcnn_mask])'''
-
         # Model
         inputs = [
             input_image, input_image_meta, input_rpn_match,

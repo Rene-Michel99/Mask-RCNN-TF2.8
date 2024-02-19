@@ -134,7 +134,7 @@ class Config(object):
             rpn_anchor_scales=None,                # type: Tuple[int]
             rpn_anchor_ratios=None,                # type: List[float]
             rpn_anchor_stride=1,                   # type: int
-            rpn_nms_threshold=0.7,                 # type: float
+            rpn_nms_threshold=0.5,                 # type: float
             rpn_train_anchors_per_image=256,       # type: int
             pre_nms_limit=6000,                    # type: int
             post_nms_rois_training=2000,           # type: int

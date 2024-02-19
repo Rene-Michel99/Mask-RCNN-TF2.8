@@ -79,7 +79,8 @@ def refine_detections_graph(rois, probs, deltas, window, config):
             tf.gather(pre_nms_rois, ixs),
             tf.gather(pre_nms_scores, ixs),
             max_output_size=config.DETECTION_MAX_INSTANCES,
-            iou_threshold=config.DETECTION_NMS_THRESHOLD)
+            iou_threshold=config.DETECTION_NMS_THRESHOLD,
+        )
         # Map indices
         class_keep = tf.gather(keep, tf.gather(ixs, class_keep))
         # Pad with -1 so returned tensors have the same shape
