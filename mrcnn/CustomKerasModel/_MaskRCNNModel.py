@@ -8,10 +8,10 @@ class MaskRCNNModel(Model):
 
     def build_losses(self, config):
         self.custom_losses = []
+        self.WEIGHT_DECAY = config.WEIGHT_DECAY
         self.custom_losses.append(RPNClassLoss())
         self.custom_losses.append(RPNBboxLoss(config.IMAGES_PER_GPU))
         self.custom_losses.append(MRCNNClassLoss())
-        self.custom_losses.append(MRCNNBboxLoss())
         self.custom_losses.append(MRCNNBboxLoss())
         self.custom_losses.append(MRCNNMaskLoss())
 
@@ -22,7 +22,13 @@ class MaskRCNNModel(Model):
                 total_loss += loss_fn(x, y)
             else:
                 loss_fn()
-        return total_loss
+
+        reg_losses = [
+            tf.keras.regularizers.l2(self.WEIGHT_DECAY)(w) / tf.cast(tf.size(input=w), tf.float32)
+            for w in self.trainable_weights
+            if 'gamma' not in w.name and 'beta' not in w.name
+        ]
+        return total_loss + tf.add_n(reg_losses)
 
     def same_rank_losses(self):
         for i in range(len(self.losses)):
